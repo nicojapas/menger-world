@@ -1,5 +1,17 @@
+import audioSystem from './audio.js';
+
 const canvas = document.getElementById('canvas');
 const gl = canvas.getContext('webgl');
+
+// Audio state
+let audioStarted = false;
+let lastSegment = -1;
+
+// Turn segments (where camera changes direction)
+const TURN_SEGMENTS = new Set([2, 4, 6]);
+
+// Pan direction for each turn (-1 = left, 1 = right, 0 = center/up)
+const TURN_PAN = { 2: 0.5, 4: 0, 6: -0.5 };
 
 function resize() {
     canvas.width = window.innerWidth;
@@ -8,6 +20,16 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 resize();
+
+// Start audio on user interaction (required by browser autoplay policy)
+const startOverlay = document.getElementById('start-overlay');
+startOverlay?.addEventListener('click', async () => {
+    if (!audioStarted) {
+        await audioSystem.start();
+        audioStarted = true;
+        startOverlay.style.display = 'none';
+    }
+});
 
 const vertexShaderSource = `
 attribute vec2 position;
@@ -338,10 +360,49 @@ gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
 const resolutionLoc = gl.getUniformLocation(program, 'resolution');
 const timeLoc = gl.getUniformLocation(program, 'time');
 
+let lastTime = 0;
 function render(time) {
+    const t = time * 0.001;
+    const dt = t - lastTime;
+    lastTime = t;
+
     gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
-    gl.uniform1f(timeLoc, time * 0.001);
+    gl.uniform1f(timeLoc, t);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // Update audio based on visual state
+    if (audioStarted) {
+        // Camera time in shader is t * 0.8
+        const camTime = t * 0.8;
+
+        // Segment tracking (matches shader logic)
+        const segLen = 10.0;
+        const segment = Math.floor(camTime / segLen) % 8;
+        const depth = (camTime % segLen) / segLen;
+
+        // Detect entering a turn segment
+        if (segment !== lastSegment) {
+            if (TURN_SEGMENTS.has(segment)) {
+                const pan = TURN_PAN[segment] || 0;
+                audioSystem.playTurnSound(pan);
+            }
+            lastSegment = segment;
+        }
+
+        // Speed based on how fast we're moving (constant in this demo)
+        const speed = 1.0;
+
+        // Twist amount (matches getTwist in shader - currently 0)
+        const twist = 0;
+
+        audioSystem.update({
+            time: t,
+            depth: depth,
+            speed: speed,
+            twist: twist,
+        });
+    }
+
     requestAnimationFrame(render);
 }
 
