@@ -44,6 +44,11 @@ const LOOPS = [
         prompt: 'distant metallic resonance, subtle sci-fi machinery hum, occasional soft tonal ping, mysterious atmosphere, seamless loop',
         duration: 6,
     },
+    {
+        name: 'turn',
+        prompt: 'rusty metal scraping against metal, heavy industrial grinding, creaking mechanical pivot, eerie metallic screech, single event not looped',
+        duration: 3,
+    },
 ];
 
 async function generateLoop(loop) {
@@ -104,11 +109,29 @@ async function main() {
     console.log('');
     console.log('=== ElevenLabs Sound Effects Loop Generator ===');
     console.log('');
-    console.log(`Generating ${LOOPS.length} loops (~${LOOPS.reduce((a, l) => a + l.duration, 0)}s total)`);
+
+    // Filter out loops that already exist
+    const toGenerate = LOOPS.filter(loop => {
+        const filePath = path.join(LOOPS_DIR, `${loop.name}.mp3`);
+        if (fs.existsSync(filePath)) {
+            console.log(`Skipping "${loop.name}" - already exists`);
+            return false;
+        }
+        return true;
+    });
+
+    if (toGenerate.length === 0) {
+        console.log('');
+        console.log('All sounds already exist. Nothing to generate.');
+        return;
+    }
+
+    console.log('');
+    console.log(`Generating ${toGenerate.length} new sound(s) (~${toGenerate.reduce((a, l) => a + l.duration, 0)}s total)`);
     console.log('');
 
     const results = [];
-    for (const loop of LOOPS) {
+    for (const loop of toGenerate) {
         try {
             const outputPath = await generateLoop(loop);
             results.push({ name: loop.name, success: true, path: outputPath });

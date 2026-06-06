@@ -6,12 +6,23 @@ const gl = canvas.getContext('webgl');
 // Audio state
 let audioStarted = false;
 let lastSegment = -1;
+let turnSoundTriggered = false;
 
-// Turn segments (where camera changes direction)
-const TURN_SEGMENTS = new Set([2, 4, 6]);
+// Visual turn effect timing (synced to sound)
+let turnEffectStartTime = -10; // Time when turn effect started
+const TURN_EFFECT_DURATION = 3.0; // Match sound duration
 
-// Pan direction for each turn (-1 = left, 1 = right, 0 = center/up)
-const TURN_PAN = { 2: 0.5, 4: 0, 6: -0.5 };
+// Segments BEFORE turns (trigger sound near end of these)
+// Turn 1 (right) happens in segment 1, so trigger in segment 0
+// Turn 2 (up) happens in segment 3, so trigger in segment 2
+// Turn 3 (left) happens in segment 5, so trigger in segment 4
+const PRE_TURN_SEGMENTS = new Set([0, 2, 4]);
+
+// Map pre-turn segment to pan direction for the upcoming turn
+const TURN_PAN = { 0: 0.5, 2: 0, 4: -0.5 };
+
+// How early to trigger (0.7 = 70% through the segment, 30% before turn)
+const TURN_SOUND_TRIGGER = 0.75;
 
 function resize() {
     canvas.width = window.innerWidth;
@@ -42,6 +53,7 @@ precision highp float;
 
 uniform vec2 resolution;
 uniform float time;
+uniform float turnIntensity;
 
 #define FAR 30.0
 #define MAX_STEPS 96
@@ -266,6 +278,13 @@ void main() {
     float twist = getTwist(ro.z);
     vec3 worldUp = vec3(sin(twist), cos(twist), 0.0);
 
+    // Handle gimbal lock: if fwd is nearly parallel to worldUp, use alternative up
+    float upDot = abs(dot(fwd, worldUp));
+    if (upDot > 0.99) {
+        // Forward is nearly vertical, use Z as the up reference instead
+        worldUp = vec3(0.0, 0.0, 1.0);
+    }
+
     // Camera matrix
     vec3 rgt = normalize(cross(worldUp, fwd));
     vec3 up = cross(fwd, rgt);
@@ -290,9 +309,11 @@ void main() {
         float spec = pow(max(dot(reflect(-li, n), -rd), 0.0), 32.0);
         float ao = calcAO(p, n);
 
-        // White material with subtle variation
+        // Material color - white normally, fades to red during turns
         float tex1 = fbm(p * 3.0);
-        vec3 matCol = vec3(0.95, 0.95, 0.97);
+        vec3 baseCol = vec3(0.95, 0.95, 0.97);
+        vec3 turnCol = vec3(0.95, 0.2, 0.15);
+        vec3 matCol = mix(baseCol, turnCol, turnIntensity);
         matCol *= 0.9 + tex1 * 0.1;
 
         // Shading
@@ -359,6 +380,7 @@ gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
 
 const resolutionLoc = gl.getUniformLocation(program, 'resolution');
 const timeLoc = gl.getUniformLocation(program, 'time');
+const turnIntensityLoc = gl.getUniformLocation(program, 'turnIntensity');
 
 let lastTime = 0;
 function render(time) {
@@ -366,27 +388,41 @@ function render(time) {
     const dt = t - lastTime;
     lastTime = t;
 
+    // Camera time in shader is t * 0.8
+    const camTime = t * 0.8;
+
+    // Segment tracking (matches shader logic)
+    const segLen = 10.0;
+    const segment = Math.floor(camTime / segLen) % 8;
+    const depth = (camTime % segLen) / segLen;
+
+    // Calculate turn intensity for visual effect (synced to sound timing)
+    let turnIntensity = 0;
+    const timeSinceTurnStart = t - turnEffectStartTime;
+    if (timeSinceTurnStart >= 0 && timeSinceTurnStart < TURN_EFFECT_DURATION) {
+        // Smooth sine curve: fade in, peak, fade out over the sound duration
+        turnIntensity = Math.sin((timeSinceTurnStart / TURN_EFFECT_DURATION) * Math.PI);
+    }
+
     gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
     gl.uniform1f(timeLoc, t);
+    gl.uniform1f(turnIntensityLoc, turnIntensity);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Update audio based on visual state
     if (audioStarted) {
-        // Camera time in shader is t * 0.8
-        const camTime = t * 0.8;
-
-        // Segment tracking (matches shader logic)
-        const segLen = 10.0;
-        const segment = Math.floor(camTime / segLen) % 8;
-        const depth = (camTime % segLen) / segLen;
-
-        // Detect entering a turn segment
+        // Detect approaching a turn - trigger sound before the turn starts
         if (segment !== lastSegment) {
-            if (TURN_SEGMENTS.has(segment)) {
-                const pan = TURN_PAN[segment] || 0;
-                audioSystem.playTurnSound(pan);
-            }
             lastSegment = segment;
+            turnSoundTriggered = false; // Reset trigger for new segment
+        }
+
+        // Trigger turn sound when approaching end of pre-turn segment
+        if (PRE_TURN_SEGMENTS.has(segment) && depth >= TURN_SOUND_TRIGGER && !turnSoundTriggered) {
+            const pan = TURN_PAN[segment] || 0;
+            audioSystem.playTurnSound(pan);
+            turnSoundTriggered = true;
+            turnEffectStartTime = t; // Start visual effect with sound
         }
 
         // Speed based on how fast we're moving (constant in this demo)

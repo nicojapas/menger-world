@@ -12,7 +12,7 @@ const LOOPS = [
 
 // One-shot sounds (not looped continuously)
 const ONE_SHOTS = [
-    { name: 'accent', file: 'loops/accent.mp3', baseVolume: 0.6 },
+    { name: 'turn', file: 'loops/turn.mp3', baseVolume: 0.7 },
 ];
 
 class AudioSystem {
@@ -283,29 +283,37 @@ class AudioSystem {
     }
 
     /**
-     * Play the turn/accent sound as a one-shot
+     * Play the turn/accent sound as a one-shot with variation
      * @param {number} pan - Stereo pan position (-1 to 1)
      */
     playTurnSound(pan = 0) {
         if (!this.started || !this.ctx) return;
         if (this.turnSoundCooldown > 0) return; // Prevent rapid re-triggering
 
-        const accent = this.oneShots.get('accent');
-        if (!accent?.buffer) {
+        const turn = this.oneShots.get('turn');
+        if (!turn?.buffer) {
             console.warn('Turn sound not loaded');
             return;
         }
 
         // Create a new source for each play (one-shots are disposable)
         const source = this.ctx.createBufferSource();
-        source.buffer = accent.buffer;
+        source.buffer = turn.buffer;
+
+        // Add variation: randomize playback rate (pitch) between 0.85 and 1.15
+        source.playbackRate.value = 0.85 + Math.random() * 0.3;
 
         // Create gain and panner for this instance
         const gain = this.ctx.createGain();
-        gain.gain.value = accent.config.baseVolume;
+
+        // Add variation: randomize volume between 0.85 and 1.0 of base
+        const volumeVariation = 0.85 + Math.random() * 0.15;
+        const targetVolume = turn.config.baseVolume * volumeVariation;
 
         const panner = this.ctx.createStereoPanner();
-        panner.pan.value = Math.max(-1, Math.min(1, pan));
+        // Add slight random pan variation to the directional pan
+        const panVariation = (Math.random() - 0.5) * 0.2;
+        panner.pan.value = Math.max(-1, Math.min(1, pan + panVariation));
 
         // Connect: source -> panner -> gain -> master effects chain
         source.connect(panner);
@@ -314,9 +322,11 @@ class AudioSystem {
 
         // Play with slight attack/release envelope
         gain.gain.setValueAtTime(0, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(accent.config.baseVolume, this.ctx.currentTime + 0.05);
+        gain.gain.linearRampToValueAtTime(targetVolume, this.ctx.currentTime + 0.05);
 
-        source.start();
+        // Random start offset (0 to 0.3 seconds into the sound)
+        const startOffset = Math.random() * 0.3;
+        source.start(0, startOffset);
 
         // Set cooldown to prevent rapid re-triggering (in seconds)
         this.turnSoundCooldown = 2.0;
