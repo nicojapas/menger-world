@@ -9,17 +9,23 @@ let lastSegment = -1;
 let turnSoundTriggered = false;
 
 // Visual turn effect timing (synced to sound)
-let turnEffectStartTime = -10; // Time when turn effect started
-const TURN_EFFECT_DURATION = 3.0; // Match sound duration
+let turnEffectStartTime = -12; // Time when turn effect started
+const TURN_EFFECT_DURATION = 4.5; // Slightly longer than sound for lingering effect
+
+// Base color oscillation settings
+const BASE_OSCILLATION_SPEED = 0.25; // Slow oscillation
+const BASE_OSCILLATION_AMOUNT = 0.2; // Subtle red tint (0-1)
+const TURN_INTENSITY_BOOST = 1.85; // Additional intensity during turns (adds to base)
 
 // Segments BEFORE turns (trigger sound near end of these)
 // Turn 1 (right) happens in segment 1, so trigger in segment 0
 // Turn 2 (up) happens in segment 3, so trigger in segment 2
 // Turn 3 (left) happens in segment 5, so trigger in segment 4
-const PRE_TURN_SEGMENTS = new Set([0, 2, 4]);
+// Turn 4 (down) happens in segment 7, so trigger in segment 6
+const PRE_TURN_SEGMENTS = new Set([0, 2, 4, 6]);
 
 // Map pre-turn segment to pan direction for the upcoming turn
-const TURN_PAN = { 0: 0.5, 2: 0, 4: -0.5 };
+const TURN_PAN = { 0: 0.5, 2: 0, 4: -0.5, 6: 0 };
 
 // How early to trigger (0.7 = 70% through the segment, 30% before turn)
 const TURN_SOUND_TRIGGER = 0.75;
@@ -32,13 +38,23 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// Start audio on user interaction (required by browser autoplay policy)
+// Track if experience has started
+let experienceStarted = false;
+let timeOffset = 0; // Offset to make animation start at time 0
+
+// Start everything on user interaction
 const startOverlay = document.getElementById('start-overlay');
 startOverlay?.addEventListener('click', async () => {
-    if (!audioStarted) {
+    if (!experienceStarted) {
         await audioSystem.start();
         audioStarted = true;
+        experienceStarted = true;
         startOverlay.style.display = 'none';
+        // Capture the current time as offset so animation starts at t=0
+        requestAnimationFrame((firstFrameTime) => {
+            timeOffset = firstFrameTime;
+            requestAnimationFrame(render);
+        });
     }
 });
 
@@ -309,10 +325,10 @@ void main() {
         float spec = pow(max(dot(reflect(-li, n), -rd), 0.0), 32.0);
         float ao = calcAO(p, n);
 
-        // Material color - white normally, fades to red during turns
+        // Material color - white normally, fades to dark red during turns
         float tex1 = fbm(p * 3.0);
         vec3 baseCol = vec3(0.95, 0.95, 0.97);
-        vec3 turnCol = vec3(0.95, 0.2, 0.15);
+        vec3 turnCol = vec3(0.55, 0.08, 0.05);
         vec3 matCol = mix(baseCol, turnCol, turnIntensity);
         matCol *= 0.9 + tex1 * 0.1;
 
@@ -384,7 +400,7 @@ const turnIntensityLoc = gl.getUniformLocation(program, 'turnIntensity');
 
 let lastTime = 0;
 function render(time) {
-    const t = time * 0.001;
+    const t = (time - timeOffset) * 0.001; // Subtract offset so we start at t=0
     const dt = t - lastTime;
     lastTime = t;
 
@@ -396,13 +412,21 @@ function render(time) {
     const segment = Math.floor(camTime / segLen) % 8;
     const depth = (camTime % segLen) / segLen;
 
-    // Calculate turn intensity for visual effect (synced to sound timing)
-    let turnIntensity = 0;
+    // Calculate turn intensity for visual effect
+    // Base: slow constant oscillation from white to subtle red
+    const baseOscillation = (1 * Math.sin(t * BASE_OSCILLATION_SPEED)) * BASE_OSCILLATION_AMOUNT;
+
+    // Turn boost: additional intensity during turns (synced to sound)
+    let turnBoost = 0;
     const timeSinceTurnStart = t - turnEffectStartTime;
     if (timeSinceTurnStart >= 0 && timeSinceTurnStart < TURN_EFFECT_DURATION) {
-        // Smooth sine curve: fade in, peak, fade out over the sound duration
-        turnIntensity = Math.sin((timeSinceTurnStart / TURN_EFFECT_DURATION) * Math.PI);
+        // Smooth sine curve: fade in, peak, fade out
+        const progress = timeSinceTurnStart / TURN_EFFECT_DURATION;
+        turnBoost = (1 - Math.pow(progress, 0.5)) * TURN_INTENSITY_BOOST;
     }
+
+    // Combine: base oscillation + turn boost (clamped to 1)
+    const turnIntensity = Math.min(1, baseOscillation + turnBoost);
 
     gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
     gl.uniform1f(timeLoc, t);
@@ -431,15 +455,40 @@ function render(time) {
         // Twist amount (matches getTwist in shader - currently 0)
         const twist = 0;
 
+        // Calculate camera z position (matches shader waypoints)
+        // Even segments (0,2,4,6): z increases by 16, odd segments: z stays constant
+        const loopOffset = Math.floor(segment / 8) * 64;
+        const segInLoop = segment % 8;
+        const zBase = [0, 16, 16, 32, 32, 48, 48, 64][segInLoop];
+        const zNext = [16, 16, 32, 32, 48, 48, 64, 64][segInLoop];
+        const camZ = loopOffset + zBase + (zNext - zBase) * depth;
+
         audioSystem.update({
             time: t,
             depth: depth,
             speed: speed,
             twist: twist,
+            camZ: camZ,
         });
     }
 
     requestAnimationFrame(render);
 }
 
-requestAnimationFrame(render);
+// Render a single static frame for the background before user clicks
+function renderStatic() {
+    gl.uniform2f(resolutionLoc, canvas.width, canvas.height);
+    gl.uniform1f(timeLoc, 0); // Frozen at time 0
+    gl.uniform1f(turnIntensityLoc, 0); // No red tint
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// Show static geometry behind the overlay
+renderStatic();
+
+// Re-render static frame on resize (before experience starts)
+window.addEventListener('resize', () => {
+    if (!experienceStarted) {
+        renderStatic();
+    }
+});

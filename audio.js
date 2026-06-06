@@ -8,6 +8,7 @@ const LOOPS = [
     { name: 'drone', file: 'loops/drone.mp3', baseVolume: 0.5 },
     { name: 'texture', file: 'loops/texture.mp3', baseVolume: 0.25 },
     { name: 'movement', file: 'loops/movement.mp3', baseVolume: 0.35 },
+    { name: 'breathing', file: 'loops/breathing.mp3', baseVolume: 0.4 },
 ];
 
 // One-shot sounds (not looped continuously)
@@ -178,16 +179,8 @@ class AudioSystem {
                 continue;
             }
 
-            const source = this.ctx.createBufferSource();
-            source.buffer = layer.buffer;
-            source.loop = true;
-            source.connect(layer.panner);
-
-            // Randomize start position for variation
-            const startOffset = Math.random() * layer.buffer.duration;
-            source.start(0, startOffset);
-
-            layer.source = source;
+            // Use crossfade looping to eliminate clicks
+            this.startCrossfadeLoop(layer);
 
             // Fade in
             layer.gain.gain.setTargetAtTime(
@@ -204,6 +197,11 @@ class AudioSystem {
         if (!this.started) return;
 
         for (const [name, layer] of this.layers) {
+            layer.loopActive = false; // Stop scheduling new loops
+            if (layer.loopTimeout) {
+                clearTimeout(layer.loopTimeout);
+                layer.loopTimeout = null;
+            }
             if (layer.source) {
                 // Fade out then stop
                 layer.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
@@ -216,6 +214,54 @@ class AudioSystem {
         }
 
         this.started = false;
+    }
+
+    /**
+     * Start a crossfade loop for seamless audio looping without clicks
+     */
+    startCrossfadeLoop(layer) {
+        const CROSSFADE_TIME = 0.12; // Crossfade duration in seconds
+        const buffer = layer.buffer;
+        const duration = buffer.duration;
+
+        const scheduleIteration = (startTime) => {
+            if (!layer.loopActive) return;
+
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+
+            // Create a gain node for crossfading this iteration
+            const fadeGain = this.ctx.createGain();
+            source.connect(fadeGain);
+            fadeGain.connect(layer.panner);
+
+            // Fade in
+            fadeGain.gain.setValueAtTime(0, startTime);
+            fadeGain.gain.linearRampToValueAtTime(1, startTime + CROSSFADE_TIME);
+
+            // Hold at full volume, then fade out
+            const fadeOutTime = startTime + duration - CROSSFADE_TIME;
+            fadeGain.gain.setValueAtTime(1, fadeOutTime);
+            fadeGain.gain.linearRampToValueAtTime(0, startTime + duration);
+
+            source.start(startTime);
+
+            layer.source = source;
+
+            // Schedule next iteration to overlap with fade out
+            const nextStartTime = fadeOutTime;
+            const msUntilNext = (nextStartTime - this.ctx.currentTime - 0.3) * 1000;
+
+            if (msUntilNext > 0) {
+                layer.loopTimeout = setTimeout(() => scheduleIteration(nextStartTime), msUntilNext);
+            } else {
+                // Fallback: schedule immediately for next valid time
+                scheduleIteration(this.ctx.currentTime + 0.01);
+            }
+        };
+
+        layer.loopActive = true;
+        scheduleIteration(this.ctx.currentTime);
     }
 
     /**
@@ -273,6 +319,22 @@ class AudioSystem {
                 Math.sin(depth * Math.PI * 2) * 0.4,
                 this.ctx.currentTime,
                 0.15
+            );
+        }
+
+        const breathingLayer = this.layers.get('breathing');
+        if (breathingLayer?.source) {
+            // Exact sync with shader wall breathing: sin(oz * 0.05 + time * 0.3)
+            const camZ = params.camZ || 0;
+            const breathPhase = Math.sin(camZ * 0.05 + time * 0.3);
+            const breathCycle = 0.7 + 0.3 * breathPhase;
+            const breathingVol = breathingLayer.config.baseVolume * breathCycle;
+            breathingLayer.gain.gain.setTargetAtTime(breathingVol, this.ctx.currentTime, 0.1);
+            // Subtle stereo drift synced to breathing
+            breathingLayer.panner.pan.setTargetAtTime(
+                breathPhase * 0.15,
+                this.ctx.currentTime,
+                0.1
             );
         }
 

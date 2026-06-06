@@ -49,6 +49,11 @@ const LOOPS = [
         prompt: 'rusty metal scraping against metal, heavy industrial grinding, creaking mechanical pivot, eerie metallic screech, single event not looped',
         duration: 3,
     },
+    {
+        name: 'breathing',
+        prompt: 'very slow deep alien respiration, long drawn out inhale and exhale over many seconds, massive creature breathing slowly, deep rumbling organic lung sounds, slow wet membrane expansion, seamless loop',
+        duration: 12,
+    },
 ];
 
 async function generateLoop(loop) {
