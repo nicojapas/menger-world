@@ -21,7 +21,7 @@ precision highp float;
 uniform vec2 resolution;
 uniform float time;
 
-#define FAR 50.0
+#define FAR 30.0
 #define MAX_STEPS 96
 #define PI 3.14159265
 
@@ -100,7 +100,7 @@ vec3 smoothPath(vec3 a, vec3 b, float t) {
 
 // Twist for visual interest
 float getTwist(float z) {
-    return z * 0.0;
+    return z * 0.00;
 }
 
 // Get waypoint by index using float comparison (WebGL 1.0 compatible)
@@ -170,22 +170,31 @@ float map(vec3 p) {
     // Offset so corridor runs through origin
     p.xy += 2.0;
 
+    // Domain warping - curves the straight lines
+    vec3 warp = vec3(
+        sin(p.y * 0.5 + p.z * 0.3) * 0.3,
+        sin(p.x * 0.5 + p.z * 0.2) * 0.3,
+        sin(p.x * 0.3 + p.y * 0.3) * 0.2
+    );
+    vec3 wp = p + warp * 0.2;
+
     // Layer 1: Large frame (8 units)
-    vec3 q = abs(mod(p, 8.0) - 4.0);
+    vec3 q = abs(mod(wp, 8.0) - 4.0);
     float d = min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 8.0 / 3.0;
 
     // Layer 2: (4 units)
-    q = abs(mod(p, 4.0) - 2.0);
+    q = abs(mod(wp, 4.0) - 2.0);
     d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 4.0 / 3.0);
 
-    // Layer 3: (2 units)
-    q = abs(mod(p, 2.0) - 1.0);
-    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 2.0 / 3.0);
+    // Layer 3: (2 units) - slow breathing
+    q = abs(mod(wp, 2.0) - 1.0);
+    float anim3 = 2.0 / 3.0 + 0.2 * sin(oz * 0.05 + time * 0.3);
+    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim3);
 
-    // Layer 4: finer detail with animated offset
-    float anim = 0.5 + 0.6 * sin(oz * 0.1 + time * 0.5);
-    q = abs(mod(p, 1.0) - anim);
-    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 1.0 / 3.0);
+    // Layer 4: finer detail - faster counter-breathing
+    q = abs(mod(wp, 1.0) - 0.5);
+    float anim4 = 1.0 / 3.0 + 0.25 * sin(oz * 0.15 - time * 0.7);
+    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim4);
 
     return d;
 }
@@ -272,6 +281,10 @@ void main() {
         // Rim light
         float rim = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
         col += vec3(0.5, 0.6, 0.8) * rim * 0.15;
+
+        // Distance fog - fade to stars before FAR to avoid artifacts
+        float fog = smoothstep(FAR * 0.4, FAR * 0.9, dist);
+        col = mix(col, stars(rd), fog);
     } else {
         // Space background with stars
         col = stars(rd);
