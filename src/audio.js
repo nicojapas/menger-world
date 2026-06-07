@@ -3,18 +3,15 @@
  * Layers multiple short loops and applies real-time effects based on visual parameters
  */
 
-// Continuous ambient layers
-const LOOPS = [
-    { name: 'drone', file: 'loops/drone.mp3', baseVolume: 0.5 },
-    { name: 'texture', file: 'loops/texture.mp3', baseVolume: 0.25 },
-    { name: 'movement', file: 'loops/movement.mp3', baseVolume: 0.35 },
-    { name: 'breathing', file: 'loops/breathing.mp3', baseVolume: 0.4 },
-];
-
-// One-shot sounds (not looped continuously)
-const ONE_SHOTS = [
-    { name: 'turn', file: 'loops/turn.mp3', baseVolume: 0.7 },
-];
+import {
+    AUDIO_LOOPS,
+    AUDIO_ONE_SHOTS,
+    MASTER_VOLUME,
+    REVERB_DURATION,
+    REVERB_DECAY,
+    CROSSFADE_TIME,
+    TURN_SOUND_COOLDOWN,
+} from './constants.js';
 
 class AudioSystem {
     constructor() {
@@ -37,12 +34,12 @@ class AudioSystem {
 
         // Master chain: layers -> highpass -> lowpass -> convolver -> master gain -> destination
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.8;
+        this.masterGain.gain.value = MASTER_VOLUME;
         this.masterGain.connect(this.ctx.destination);
 
         // Convolver for reverb (we'll generate an impulse response)
         this.convolver = this.ctx.createConvolver();
-        this.convolver.buffer = this.createReverbImpulse(3, 2, false);
+        this.convolver.buffer = this.createReverbImpulse(REVERB_DURATION, REVERB_DECAY, false);
 
         // Dry/wet mix for reverb
         this.dryGain = this.ctx.createGain();
@@ -95,7 +92,7 @@ class AudioSystem {
 
     async loadLoops() {
         // Load continuous loops
-        const loadPromises = LOOPS.map(async (loop) => {
+        const loadPromises = AUDIO_LOOPS.map(async (loop) => {
             try {
                 const response = await fetch(loop.file);
                 if (!response.ok) {
@@ -134,7 +131,7 @@ class AudioSystem {
         }
 
         // Load one-shot sounds
-        const oneShotPromises = ONE_SHOTS.map(async (sound) => {
+        const oneShotPromises = AUDIO_ONE_SHOTS.map(async (sound) => {
             try {
                 const response = await fetch(sound.file);
                 if (!response.ok) {
@@ -220,7 +217,6 @@ class AudioSystem {
      * Start a crossfade loop for seamless audio looping without clicks
      */
     startCrossfadeLoop(layer) {
-        const CROSSFADE_TIME = 0.12; // Crossfade duration in seconds
         const buffer = layer.buffer;
         const duration = buffer.duration;
 
@@ -271,6 +267,7 @@ class AudioSystem {
      * @param {number} params.depth - Camera depth in corridor (0-1, affects filter)
      * @param {number} params.speed - Camera movement speed (affects layer mix)
      * @param {number} params.twist - Current corridor twist amount
+     * @param {number} params.camZ - Camera Z position for breathing sync
      */
     update(params) {
         if (!this.started || !this.ctx) return;
@@ -390,8 +387,8 @@ class AudioSystem {
         const startOffset = Math.random() * 0.3;
         source.start(0, startOffset);
 
-        // Set cooldown to prevent rapid re-triggering (in seconds)
-        this.turnSoundCooldown = 2.0;
+        // Set cooldown to prevent rapid re-triggering
+        this.turnSoundCooldown = TURN_SOUND_COOLDOWN;
     }
 
     // Set master volume (0-1)
