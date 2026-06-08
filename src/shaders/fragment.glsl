@@ -62,15 +62,10 @@ vec3 stars(vec3 rd) {
 
         // Sharp star points
         float star = smoothstep(0.1, 0.0, d) * brightness;
-
+        col += star;
     }
 
     return col;
-}
-
-float smin(float a, float b, float k) {
-    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-    return mix(b, a, h) - k * h * (1.0 - h);
 }
 
 // Smooth interpolation for camera path
@@ -141,8 +136,6 @@ vec3 camDir(float t) {
     vec3 p1 = camPath(t + 0.5);
     return normalize(p1 - p0);
 }
-
-float matID = 0.0;
 
 // Twisting Menger structure
 float map(vec3 p) {
@@ -245,7 +238,6 @@ void main() {
     vec3 rd = normalize(fwd * 1.5 + uv.x * rgt + uv.y * up);
 
     float dist = trace(ro, rd);
-    float saveMat = matID;
 
     vec3 col = vec3(0);
 
