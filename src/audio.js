@@ -344,30 +344,37 @@ class AudioSystem {
     /**
      * Play the turn/accent sound as a one-shot with variation
      * @param {number} pan - Stereo pan position (-1 to 1)
+     * @param {boolean} isAlternate - Use accent sound (stretched) instead of turn sound
      */
-    playTurnSound(pan = 0) {
+    playTurnSound(pan = 0, isAlternate = false) {
         if (!this.started || !this.ctx) return;
         if (this.turnSoundCooldown > 0) return; // Prevent rapid re-triggering
 
-        const turn = this.oneShots.get('turn');
-        if (!turn?.buffer) {
-            console.warn('Turn sound not loaded');
+        // Use turn sound normally, accent sound (stretched) on alternate turns
+        const soundName = isAlternate ? 'accent' : 'turn';
+        const sound = this.oneShots.get(soundName);
+        if (!sound?.buffer) {
+            console.warn(`${soundName} sound not loaded`);
             return;
         }
 
         // Create a new source for each play (one-shots are disposable)
         const source = this.ctx.createBufferSource();
-        source.buffer = turn.buffer;
+        source.buffer = sound.buffer;
 
-        // Add variation: randomize playback rate (pitch) between 0.85 and 1.15
-        source.playbackRate.value = 0.85 + Math.random() * 0.3;
+        // Pitch: turn (0.85-1.15), accent stretched lower (0.5-0.7)
+        if (isAlternate) {
+            source.playbackRate.value = 0.5 + Math.random() * 0.2;
+        } else {
+            source.playbackRate.value = 0.85 + Math.random() * 0.3;
+        }
 
         // Create gain and panner for this instance
         const gain = this.ctx.createGain();
 
         // Add variation: randomize volume between 0.85 and 1.0 of base
         const volumeVariation = 0.85 + Math.random() * 0.15;
-        const targetVolume = turn.config.baseVolume * volumeVariation;
+        const targetVolume = sound.config.baseVolume * volumeVariation;
 
         const panner = this.ctx.createStereoPanner();
         // Add slight random pan variation to the directional pan

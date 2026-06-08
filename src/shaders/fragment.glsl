@@ -3,6 +3,7 @@ precision highp float;
 uniform vec2 resolution;
 uniform float time;
 uniform float turnIntensity;
+uniform float isAlternate;
 
 #define FAR 30.0
 #define MAX_STEPS 96
@@ -62,9 +63,6 @@ vec3 stars(vec3 rd) {
         // Sharp star points
         float star = smoothstep(0.1, 0.0, d) * brightness;
 
-        // Slight color variation
-        vec3 starCol = mix(vec3(0.8, 0.9, 1.0), vec3(1.0, 0.95, 0.8), hash(h * 23.0));
-        col += star * starCol;
     }
 
     return col;
@@ -83,7 +81,11 @@ vec3 smoothPath(vec3 a, vec3 b, float t) {
 
 // Twist for visual interest
 float getTwist(float z) {
-    return z * 0.00;
+    float camTime = time * 0.8;
+    float seg = min(mod(camTime, 20.0) / 10.0, 1.0);
+    float twist = sin(seg * PI) * 0.05;
+
+    return z * twist;
 }
 
 // Get waypoint by index using float comparison (WebGL 1.0 compatible)
@@ -179,7 +181,8 @@ float map(vec3 p) {
     float anim4 = 1.0 / 3.0 + 0.25 * sin(oz * 0.15 - time * 0.7);
     d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim4);
 
-    return d;
+    float turnFx = max(turnIntensity - 0.2, 0.0);
+    return d + noise(p * 2.0) * turnFx * 0.15;
 }
 
 float trace(vec3 ro, vec3 rd) {
@@ -210,6 +213,7 @@ float calcAO(vec3 p, vec3 n) {
     }
     return clamp(1.0 - occ, 0.0, 1.0);
 }
+
 
 void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * resolution) / resolution.y;
@@ -258,10 +262,12 @@ void main() {
         float spec = pow(max(dot(reflect(-li, n), -rd), 0.0), 32.0);
         float ao = calcAO(p, n);
 
-        // Material color - white normally, fades to dark red during turns
+        // Material color - white normally, fades to red or ice blue during turns
         float tex1 = fbm(p * 3.0);
         vec3 baseCol = vec3(0.95, 0.95, 0.97);
-        vec3 turnCol = vec3(0.55, 0.08, 0.05);
+        vec3 redCol = vec3(0.4, 0.02, 0.0);
+        vec3 iceBlueCol = vec3(0.8, 0.8, 0.97);
+        vec3 turnCol = isAlternate > 0.5 ? iceBlueCol : redCol;
         vec3 matCol = mix(baseCol, turnCol, turnIntensity);
         matCol *= 0.9 + tex1 * 0.1;
 
@@ -269,10 +275,6 @@ void main() {
         col = matCol * (diff * 0.7 + 0.3);
         col += vec3(1.0) * spec * 0.6;
         col *= ao * atten;
-
-        // Rim light
-        float rim = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
-        col += vec3(0.5, 0.6, 0.8) * rim * 0.15;
 
         // Distance fog - fade to stars before FAR to avoid artifacts
         float fog = smoothstep(FAR * 0.4, FAR * 0.9, dist);

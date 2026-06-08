@@ -22,12 +22,13 @@ export class SyncState {
         this.lastSegment = -1;
         this.turnSoundTriggered = false;
         this.turnEffectStartTime = -12;
+        this.turnCount = 0;
     }
 
     /**
      * Update sync state based on current time
      * @param {number} time - Animation time in seconds
-     * @param {function} onTurnSound - Callback when turn sound should play (receives pan value)
+     * @param {function} onTurnSound - Callback when turn sound should play (receives pan, isAlternate)
      * @returns {{ turnIntensity: number, audioParams: object }}
      */
     update(time, onTurnSound) {
@@ -46,13 +47,18 @@ export class SyncState {
             !this.turnSoundTriggered
         ) {
             const pan = TURN_PAN[segment] || 0;
-            onTurnSound(pan);
+            const isAlternate = this.turnCount % 2 === 1;
+            onTurnSound(pan, isAlternate);
             this.turnSoundTriggered = true;
             this.turnEffectStartTime = time;
+            this.turnCount++;
         }
 
         // Calculate turn intensity for visual effect
         const turnIntensity = this.calculateTurnIntensity(time);
+
+        // Is this an alternate turn (for accent sound visual)?
+        const isAlternate = this.turnCount % 2 === 0 && turnIntensity > 0;
 
         // Calculate camera Z position for audio sync
         const camZ = getCameraZ(segment, depth);
@@ -66,7 +72,7 @@ export class SyncState {
             camZ,
         };
 
-        return { turnIntensity, audioParams };
+        return { turnIntensity, isAlternate, audioParams };
     }
 
     /**

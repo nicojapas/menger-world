@@ -61,6 +61,7 @@ export const AUDIO_LOOPS = [
 
 export const AUDIO_ONE_SHOTS = [
     { name: 'turn', file: 'loops/turn.mp3', baseVolume: 0.7 },
+    { name: 'accent', file: 'loops/accent.mp3', baseVolume: 0.6 },
 ];
 
 // Audio effects

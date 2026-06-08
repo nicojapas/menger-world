@@ -103,6 +103,7 @@ export class Renderer {
             resolution: gl.getUniformLocation(this.program, 'resolution'),
             time: gl.getUniformLocation(this.program, 'time'),
             turnIntensity: gl.getUniformLocation(this.program, 'turnIntensity'),
+            isAlternate: gl.getUniformLocation(this.program, 'isAlternate'),
         };
     }
 
@@ -119,12 +120,14 @@ export class Renderer {
      * Render a frame
      * @param {number} time - Animation time in seconds
      * @param {number} turnIntensity - Turn effect intensity (0-1)
+     * @param {boolean} isAlternate - Whether this is an alternate turn (accent sound)
      */
-    render(time, turnIntensity) {
+    render(time, turnIntensity, isAlternate = false) {
         const gl = this.gl;
         gl.uniform2f(this.uniforms.resolution, this.canvas.width, this.canvas.height);
         gl.uniform1f(this.uniforms.time, time);
         gl.uniform1f(this.uniforms.turnIntensity, turnIntensity);
+        gl.uniform1f(this.uniforms.isAlternate, isAlternate ? 1.0 : 0.0);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
