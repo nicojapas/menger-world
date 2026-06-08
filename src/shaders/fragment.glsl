@@ -5,8 +5,25 @@ uniform float time;
 uniform float turnIntensity;
 uniform float isAlternate;
 
+// Debug controls
+uniform float breathingEnabled;
+uniform float breathingScale;
+uniform float breathingSpeed;
+uniform float iterations;
+uniform float domainWarp;
+uniform float twistAmount;
+uniform float fogStart;
+uniform float lightIntensity;
+uniform float aoStrength;
+uniform float layer3Anim;
+uniform float layer4Anim;
+uniform float layer5Anim;
+uniform float layer6Anim;
+uniform float cameraSpeed;
+uniform float turnVisualEnabled;
+
 #define FAR 30.0
-#define MAX_STEPS 96
+#define MAX_STEPS 128
 #define PI 3.14159265
 
 mat2 rot(float a) {
@@ -76,9 +93,9 @@ vec3 smoothPath(vec3 a, vec3 b, float t) {
 
 // Twist for visual interest
 float getTwist(float z) {
-    float camTime = time * 0.8;
+    float camTime = time * 0.8 * cameraSpeed;
     float seg = min(mod(camTime, 20.0) / 10.0, 1.0);
-    float twist = sin(seg * PI) * 0.05;
+    float twist = sin(seg * PI) * twistAmount;
 
     return z * twist;
 }
@@ -154,36 +171,65 @@ float map(vec3 p) {
         sin(p.x * 0.5 + p.z * 0.2) * 0.3,
         sin(p.x * 0.3 + p.y * 0.3) * 0.2
     );
-    vec3 wp = p + warp * 0.2;
+    vec3 wp = p + warp * domainWarp;
+
+    // Breathing multipliers
+    float bEnabled = breathingEnabled;
+    float bScale = breathingScale;
+    float bSpeed = breathingSpeed;
 
     // Layer 1: Large frame (8 units)
     vec3 q = abs(mod(wp, 8.0) - 4.0);
     float d = min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 8.0 / 3.0;
 
     // Layer 2: (4 units)
-    q = abs(mod(wp, 4.0) - 2.0);
-    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 4.0 / 3.0);
+    if (iterations >= 2.0) {
+        q = abs(mod(wp, 4.0) - 2.0);
+        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 4.0 / 3.0);
+    }
 
     // Layer 3: (2 units) - slow breathing
-    q = abs(mod(wp, 2.0) - 1.0);
-    float anim3 = 2.0 / 3.0 + 0.2 * sin(oz * 0.05 + time * 0.3);
-    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim3);
+    if (iterations >= 3.0) {
+        q = abs(mod(wp, 2.0) - 1.0);
+        float phase3 = oz * 0.05 + time * 0.3 * bSpeed * bEnabled;
+        float anim3 = 2.0 / 3.0 + layer3Anim * bScale * sin(phase3);
+        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim3);
+    }
 
     // Layer 4: finer detail - faster counter-breathing
-    q = abs(mod(wp, 1.0) - 0.5);
-    float anim4 = 1.0 / 3.0 + 0.25 * sin(oz * 0.15 - time * 0.7);
-    d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim4);
+    if (iterations >= 4.0) {
+        q = abs(mod(wp, 1.0) - 0.5);
+        float phase4 = oz * 0.15 - time * 0.7 * bSpeed * bEnabled;
+        float anim4 = 1.0 / 3.0 + layer4Anim * bScale * sin(phase4);
+        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim4);
+    }
+
+    // Layer 5: very fine detail (0.5 units) - subtle shimmer
+    if (iterations >= 5.0) {
+        q = abs(mod(wp, 0.5) - 0.25);
+        float phase5 = oz * 0.25 + time * 1.1 * bSpeed * bEnabled;
+        float anim5 = 0.5 / 3.0 + layer5Anim * bScale * sin(phase5);
+        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim5);
+    }
+
+    // Layer 6: micro detail (0.25 units) - fast ripple
+    if (iterations >= 6.0) {
+        q = abs(mod(wp, 0.25) - 0.125);
+        float phase6 = oz * 0.4 - time * 1.5 * bSpeed * bEnabled;
+        float anim6 = 0.25 / 3.0 + layer6Anim * bScale * sin(phase6);
+        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim6);
+    }
 
     float turnFx = max(turnIntensity - 0.2, 0.0);
-    return d + noise(p * 2.0) * turnFx * 0.15;
+    return d + noise(p * 2.0) * turnFx * 0.15 * turnVisualEnabled;
 }
 
 float trace(vec3 ro, vec3 rd) {
     float t = 0.0;
     for (int i = 0; i < MAX_STEPS; i++) {
         float d = map(ro + rd * t);
-        if (d < 0.002 * (t * 0.1 + 1.0) || t > FAR) break;
-        t += d * 0.9;
+        if (d < 0.001 * (t * 0.1 + 1.0) || t > FAR) break;
+        t += d * 0.85;
     }
     return t;
 }
@@ -211,7 +257,7 @@ float calcAO(vec3 p, vec3 n) {
 void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * resolution) / resolution.y;
 
-    float t = time * 0.8;
+    float t = time * 0.8 * cameraSpeed;
 
     // Camera follows path through corridors
     vec3 ro = camPath(t);
@@ -253,6 +299,7 @@ void main() {
         float diff = max(dot(n, li), 0.0);
         float spec = pow(max(dot(reflect(-li, n), -rd), 0.0), 32.0);
         float ao = calcAO(p, n);
+        ao = mix(1.0, ao, aoStrength); // Apply AO strength
 
         // Material color - white normally, fades to red or ice blue during turns
         float tex1 = fbm(p * 3.0);
@@ -260,16 +307,17 @@ void main() {
         vec3 redCol = vec3(0.4, 0.02, 0.0);
         vec3 iceBlueCol = vec3(0.8, 0.8, 0.97);
         vec3 turnCol = isAlternate > 0.5 ? iceBlueCol : redCol;
-        vec3 matCol = mix(baseCol, turnCol, turnIntensity);
+        float effectiveTurnIntensity = turnIntensity * turnVisualEnabled;
+        vec3 matCol = mix(baseCol, turnCol, effectiveTurnIntensity);
         matCol *= 0.9 + tex1 * 0.1;
 
-        // Shading
-        col = matCol * (diff * 0.7 + 0.3);
-        col += vec3(1.0) * spec * 0.6;
+        // Shading with light intensity control
+        col = matCol * (diff * 0.7 * lightIntensity + 0.3);
+        col += vec3(1.0) * spec * 0.6 * lightIntensity;
         col *= ao * atten;
 
         // Distance fog - fade to stars before FAR to avoid artifacts
-        float fog = smoothstep(FAR * 0.4, FAR * 0.9, dist);
+        float fog = smoothstep(FAR * fogStart, FAR * 0.9, dist);
         col = mix(col, stars(rd), fog);
     } else {
         // Space background with stars

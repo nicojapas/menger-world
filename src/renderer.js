@@ -104,7 +104,51 @@ export class Renderer {
             time: gl.getUniformLocation(this.program, 'time'),
             turnIntensity: gl.getUniformLocation(this.program, 'turnIntensity'),
             isAlternate: gl.getUniformLocation(this.program, 'isAlternate'),
+            // Debug controls
+            breathingEnabled: gl.getUniformLocation(this.program, 'breathingEnabled'),
+            breathingScale: gl.getUniformLocation(this.program, 'breathingScale'),
+            breathingSpeed: gl.getUniformLocation(this.program, 'breathingSpeed'),
+            iterations: gl.getUniformLocation(this.program, 'iterations'),
+            domainWarp: gl.getUniformLocation(this.program, 'domainWarp'),
+            twistAmount: gl.getUniformLocation(this.program, 'twistAmount'),
+            fogStart: gl.getUniformLocation(this.program, 'fogStart'),
+            lightIntensity: gl.getUniformLocation(this.program, 'lightIntensity'),
+            aoStrength: gl.getUniformLocation(this.program, 'aoStrength'),
+            layer3Anim: gl.getUniformLocation(this.program, 'layer3Anim'),
+            layer4Anim: gl.getUniformLocation(this.program, 'layer4Anim'),
+            layer5Anim: gl.getUniformLocation(this.program, 'layer5Anim'),
+            layer6Anim: gl.getUniformLocation(this.program, 'layer6Anim'),
+            cameraSpeed: gl.getUniformLocation(this.program, 'cameraSpeed'),
+            turnVisualEnabled: gl.getUniformLocation(this.program, 'turnVisualEnabled'),
         };
+
+        // Default debug values
+        this.debugValues = {
+            breathingEnabled: 1.0,
+            breathingScale: 1.0,
+            breathingSpeed: 1.0,
+            iterations: 6,
+            domainWarp: 0.2,
+            twistAmount: 0.05,
+            fogStart: 0.4,
+            lightIntensity: 1.0,
+            aoStrength: 1.0,
+            layer3Anim: 0.2,
+            layer4Anim: 0.25,
+            layer5Anim: 0.08,
+            layer6Anim: 0.04,
+            cameraSpeed: 1.0,
+            turnSoundsEnabled: 1.0,
+            turnVisualEnabled: 1.0,
+        };
+    }
+
+    /**
+     * Update debug uniform values
+     * @param {object} values - Object with debug parameter values
+     */
+    setDebugValues(values) {
+        this.debugValues = { ...this.debugValues, ...values };
     }
 
     /**
@@ -128,6 +172,25 @@ export class Renderer {
         gl.uniform1f(this.uniforms.time, time);
         gl.uniform1f(this.uniforms.turnIntensity, turnIntensity);
         gl.uniform1f(this.uniforms.isAlternate, isAlternate ? 1.0 : 0.0);
+
+        // Debug uniforms
+        const d = this.debugValues;
+        gl.uniform1f(this.uniforms.breathingEnabled, d.breathingEnabled);
+        gl.uniform1f(this.uniforms.breathingScale, d.breathingScale);
+        gl.uniform1f(this.uniforms.breathingSpeed, d.breathingSpeed);
+        gl.uniform1f(this.uniforms.iterations, d.iterations);
+        gl.uniform1f(this.uniforms.domainWarp, d.domainWarp);
+        gl.uniform1f(this.uniforms.twistAmount, d.twistAmount);
+        gl.uniform1f(this.uniforms.fogStart, d.fogStart);
+        gl.uniform1f(this.uniforms.lightIntensity, d.lightIntensity);
+        gl.uniform1f(this.uniforms.aoStrength, d.aoStrength);
+        gl.uniform1f(this.uniforms.layer3Anim, d.layer3Anim);
+        gl.uniform1f(this.uniforms.layer4Anim, d.layer4Anim);
+        gl.uniform1f(this.uniforms.layer5Anim, d.layer5Anim);
+        gl.uniform1f(this.uniforms.layer6Anim, d.layer6Anim);
+        gl.uniform1f(this.uniforms.cameraSpeed, d.cameraSpeed);
+        gl.uniform1f(this.uniforms.turnVisualEnabled, d.turnVisualEnabled);
+
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 

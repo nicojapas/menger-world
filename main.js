@@ -5,11 +5,13 @@
 import { Renderer, loadShader } from './src/renderer.js';
 import { SyncState } from './src/sync.js';
 import audioSystem from './src/audio.js';
+import { DebugUI } from './src/debug.js';
 
 // Initialize renderer
 const canvas = document.getElementById('canvas');
 const renderer = new Renderer(canvas);
 const syncState = new SyncState();
+const debugUI = new DebugUI();
 
 // State
 let experienceStarted = false;
@@ -31,7 +33,10 @@ function render(time) {
 
     // Update sync state and get visual/audio parameters
     const { turnIntensity, isAlternate, audioParams } = syncState.update(t, (pan, isAlt) => {
-        audioSystem.playTurnSound(pan, isAlt);
+        // Only play turn sounds if enabled
+        if (debugUI.getValues().turnSoundsEnabled > 0.5) {
+            audioSystem.playTurnSound(pan, isAlt);
+        }
     });
 
     // Render frame
@@ -70,6 +75,12 @@ async function init() {
     // Initialize renderer
     renderer.init(fragmentSource);
     renderer.resize();
+
+    // Initialize debug UI
+    debugUI.init();
+    debugUI.onChange = (values) => {
+        renderer.setDebugValues(values);
+    };
 
     // Show static frame behind overlay
     renderer.renderStatic();
