@@ -25,12 +25,7 @@ from parameters import to_frontend_params, VisualParameters
 
 # ElevenLabs imports (optional)
 try:
-    from elevenlabs_config import (
-        get_elevenlabs_client,
-        get_or_create_agent,
-        get_signed_url,
-        INITIAL_PARAMS
-    )
+    from elevenlabs_config import get_agent_id, INITIAL_PARAMS
     ELEVENLABS_AVAILABLE = True
 except ImportError:
     ELEVENLABS_AVAILABLE = False
@@ -46,8 +41,7 @@ MAX_INPUT_LENGTH = 500
 # Backend selection
 AGENT_BACKEND = os.getenv("AGENT_BACKEND", "langgraph")  # "langgraph" or "elevenlabs"
 
-# ElevenLabs state (initialized in lifespan)
-elevenlabs_client = None
+# ElevenLabs agent ID (initialized in lifespan)
 elevenlabs_agent_id = None
 
 
@@ -149,17 +143,15 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize services on startup."""
-    global elevenlabs_client, elevenlabs_agent_id
+    global elevenlabs_agent_id
 
     # Initialize ElevenLabs if using that backend
     if AGENT_BACKEND == "elevenlabs" and ELEVENLABS_AVAILABLE:
         try:
-            elevenlabs_client = get_elevenlabs_client()
-            elevenlabs_agent_id = get_or_create_agent(elevenlabs_client)
+            elevenlabs_agent_id = get_agent_id()
             print(f"ElevenLabs backend initialized with agent: {elevenlabs_agent_id}")
         except Exception as e:
             print(f"Failed to initialize ElevenLabs: {e}")
-            elevenlabs_client = None
             elevenlabs_agent_id = None
 
     # For LangGraph backend, initialize voice synthesizer
@@ -222,24 +214,11 @@ async def get_config():
     """Get client configuration including backend type."""
     return {
         "backend": AGENT_BACKEND,
+        "agentId": elevenlabs_agent_id if AGENT_BACKEND == "elevenlabs" else None,
         "initialParams": INITIAL_PARAMS if AGENT_BACKEND == "elevenlabs" else None
     }
 
 
-@app.get("/elevenlabs/signed-url")
-async def get_elevenlabs_signed_url():
-    """Get a signed URL for ElevenLabs Conversational AI WebSocket connection."""
-    if AGENT_BACKEND != "elevenlabs":
-        raise HTTPException(status_code=400, detail="ElevenLabs backend not enabled")
-
-    if not elevenlabs_client or not elevenlabs_agent_id:
-        raise HTTPException(status_code=503, detail="ElevenLabs not initialized")
-
-    try:
-        signed_url = get_signed_url(elevenlabs_client, elevenlabs_agent_id)
-        return {"signedUrl": signed_url, "agentId": elevenlabs_agent_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.websocket("/ws")

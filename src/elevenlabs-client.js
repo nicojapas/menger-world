@@ -33,26 +33,26 @@ export class ElevenLabsClient {
             throw new Error('ElevenLabs SDK not loaded. Include @elevenlabs/client script.');
         }
 
-        // Get signed URL from our server
-        const response = await fetch(`${this.serverUrl}/elevenlabs/signed-url`);
-        if (!response.ok) {
-            throw new Error(`Failed to get signed URL: ${response.statusText}`);
-        }
-        const { signedUrl } = await response.json();
-
-        // Get initial params from config
+        // Get config (agent ID and initial params) from our server
         const configResponse = await fetch(`${this.serverUrl}/config`);
-        if (configResponse.ok) {
-            const config = await configResponse.json();
-            if (config.initialParams) {
-                this.targetParams = { ...config.initialParams };
-                this.currentParams = { ...config.initialParams };
-                this.onParamsChange(this.currentParams);
-            }
+        if (!configResponse.ok) {
+            throw new Error(`Failed to get config: ${configResponse.statusText}`);
+        }
+        const config = await configResponse.json();
+
+        if (!config.agentId) {
+            throw new Error('No agent ID in config. Set ELEVENLABS_AGENT_ID in .env');
         }
 
+        if (config.initialParams) {
+            this.targetParams = { ...config.initialParams };
+            this.currentParams = { ...config.initialParams };
+            this.onParamsChange(this.currentParams);
+        }
+
+        // Connect directly with agent ID (public agent, no signed URL needed)
         this.conversation = await Conversation.startSession({
-            signedUrl: signedUrl,
+            agentId: config.agentId,
 
             // Handle visual parameter updates via client tool
             clientTools: {
