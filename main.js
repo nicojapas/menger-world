@@ -1,12 +1,14 @@
 /**
  * Main orchestrator - minimal entry point that ties together all modules
+ * Supports two backends: LangGraph (custom agent) or ElevenLabs (native voice AI)
  */
 
 import { Renderer, loadShader } from './src/renderer.js';
 import { SyncState } from './src/sync.js';
 import audioSystem from './src/audio.js';
 import { AgentClient, createAgentUI } from './src/agent-client.js';
-import { AGENT_WS_URL } from './config.js';
+import { ElevenLabsClient, createElevenLabsUI } from './src/elevenlabs-client.js';
+import { AGENT_WS_URL, SERVER_URL } from './config.js';
 
 // Initialize renderer
 const canvas = document.getElementById('canvas');
@@ -80,6 +82,19 @@ startOverlay?.addEventListener('click', async () => {
     });
 });
 
+// Get backend configuration from server
+async function getBackendConfig() {
+    try {
+        const response = await fetch(`${SERVER_URL}/config`);
+        if (response.ok) {
+            return await response.json();
+        }
+    } catch (e) {
+        console.log('Could not fetch config, using default LangGraph backend');
+    }
+    return { backend: 'langgraph' };
+}
+
 // Initialize
 async function init() {
     // Load fragment shader (vertex shader is inlined in renderer)
@@ -89,36 +104,60 @@ async function init() {
     renderer.init(fragmentSource);
     renderer.resize();
 
-    // Initialize agent client (connects after user clicks to start)
-    agentUI = createAgentUI();
-    agentClient = new AgentClient({
-        wsUrl: AGENT_WS_URL,
-        onParamsChange: (params) => {
-            renderer.setVisualParams(params);
-        },
-        onStatusChange: (status) => {
-            agentUI.updateStatus(status);
-        },
-        onTranscript: (entry) => {
-            agentUI.addTranscript(entry);
-        }
-    });
+    // Get backend configuration
+    const config = await getBackendConfig();
+    const useElevenLabs = config.backend === 'elevenlabs';
 
-    // Keyboard shortcut for microphone
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'm' || e.key === 'M') {
+    console.log(`Using ${config.backend} backend`);
+
+    // Initialize appropriate agent client based on backend
+    if (useElevenLabs) {
+        agentUI = createElevenLabsUI();
+        agentClient = new ElevenLabsClient({
+            serverUrl: SERVER_URL,
+            onParamsChange: (params) => {
+                renderer.setVisualParams(params);
+            },
+            onStatusChange: (status) => {
+                agentUI.updateStatus(status);
+            },
+            onTranscript: (entry) => {
+                agentUI.addTranscript(entry);
+            }
+        });
+    } else {
+        agentUI = createAgentUI();
+        agentClient = new AgentClient({
+            wsUrl: AGENT_WS_URL,
+            onParamsChange: (params) => {
+                renderer.setVisualParams(params);
+            },
+            onStatusChange: (status) => {
+                agentUI.updateStatus(status);
+            },
+            onTranscript: (entry) => {
+                agentUI.addTranscript(entry);
+            }
+        });
+    }
+
+    // Keyboard shortcut for microphone (only for LangGraph backend)
+    if (!useElevenLabs) {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'm' || e.key === 'M') {
+                if (agentClient.isConnected) {
+                    agentClient.toggleListening();
+                }
+            }
+        });
+
+        // Button click handler
+        document.getElementById('agent-listen-btn')?.addEventListener('click', () => {
             if (agentClient.isConnected) {
                 agentClient.toggleListening();
             }
-        }
-    });
-
-    // Button click handler
-    document.getElementById('agent-listen-btn')?.addEventListener('click', () => {
-        if (agentClient.isConnected) {
-            agentClient.toggleListening();
-        }
-    });
+        });
+    }
 
     // Show static frame behind overlay
     renderer.renderStatic();

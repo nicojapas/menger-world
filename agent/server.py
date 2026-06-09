@@ -1,6 +1,10 @@
 """
 WebSocket server for the visual agent.
-Handles real-time communication between the browser and the LangGraph agent.
+Handles real-time communication between the browser and the agent.
+
+Supports two backends:
+- LangGraph (default): Custom agent with Groq LLM
+- ElevenLabs: Native Conversational AI (set AGENT_BACKEND=elevenlabs)
 """
 
 import os
@@ -8,16 +12,28 @@ from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from dotenv import load_dotenv
 
 from graph import VisualAgent
 from voice import VoiceSynthesizer
 from voice_local import LocalVoiceSynthesizer
 from parameters import to_frontend_params, VisualParameters
+
+# ElevenLabs imports (optional)
+try:
+    from elevenlabs_config import (
+        get_elevenlabs_client,
+        get_or_create_agent,
+        get_signed_url,
+        INITIAL_PARAMS
+    )
+    ELEVENLABS_AVAILABLE = True
+except ImportError:
+    ELEVENLABS_AVAILABLE = False
 
 # Load environment variables from project root
 ROOT_DIR = Path(__file__).parent.parent
@@ -26,6 +42,13 @@ load_dotenv(env_path)
 
 # Input validation
 MAX_INPUT_LENGTH = 500
+
+# Backend selection
+AGENT_BACKEND = os.getenv("AGENT_BACKEND", "langgraph")  # "langgraph" or "elevenlabs"
+
+# ElevenLabs state (initialized in lifespan)
+elevenlabs_client = None
+elevenlabs_agent_id = None
 
 
 class ConnectionManager:
@@ -126,21 +149,35 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize services on startup."""
-    # Try to initialize voice synthesizer
-    # Priority: 1. Local Piper TTS (HAL-9000), 2. ElevenLabs (if configured)
-    use_elevenlabs = os.getenv("USE_ELEVENLABS", "false").lower() == "true"
+    global elevenlabs_client, elevenlabs_agent_id
 
-    if use_elevenlabs and os.getenv("ELEVENLABS_API_KEY"):
+    # Initialize ElevenLabs if using that backend
+    if AGENT_BACKEND == "elevenlabs" and ELEVENLABS_AVAILABLE:
         try:
-            manager.voice = VoiceSynthesizer()
-        except Exception:
-            manager.voice = None
+            elevenlabs_client = get_elevenlabs_client()
+            elevenlabs_agent_id = get_or_create_agent(elevenlabs_client)
+            print(f"ElevenLabs backend initialized with agent: {elevenlabs_agent_id}")
+        except Exception as e:
+            print(f"Failed to initialize ElevenLabs: {e}")
+            elevenlabs_client = None
+            elevenlabs_agent_id = None
 
-    if not manager.voice:
-        try:
-            manager.voice = LocalVoiceSynthesizer()
-        except Exception:
-            pass  # Will use browser TTS fallback
+    # For LangGraph backend, initialize voice synthesizer
+    if AGENT_BACKEND == "langgraph":
+        # Priority: 1. Local Piper TTS (HAL-9000), 2. ElevenLabs TTS (if configured)
+        use_elevenlabs = os.getenv("USE_ELEVENLABS", "false").lower() == "true"
+
+        if use_elevenlabs and os.getenv("ELEVENLABS_API_KEY"):
+            try:
+                manager.voice = VoiceSynthesizer()
+            except Exception:
+                manager.voice = None
+
+        if not manager.voice:
+            try:
+                manager.voice = LocalVoiceSynthesizer()
+            except Exception:
+                pass  # Will use browser TTS fallback
 
     yield
 
@@ -174,8 +211,35 @@ async def root():
 async def health():
     return {
         "status": "ok",
-        "voice_enabled": manager.voice is not None
+        "backend": AGENT_BACKEND,
+        "voice_enabled": manager.voice is not None,
+        "elevenlabs_ready": elevenlabs_agent_id is not None
     }
+
+
+@app.get("/config")
+async def get_config():
+    """Get client configuration including backend type."""
+    return {
+        "backend": AGENT_BACKEND,
+        "initialParams": INITIAL_PARAMS if AGENT_BACKEND == "elevenlabs" else None
+    }
+
+
+@app.get("/elevenlabs/signed-url")
+async def get_elevenlabs_signed_url():
+    """Get a signed URL for ElevenLabs Conversational AI WebSocket connection."""
+    if AGENT_BACKEND != "elevenlabs":
+        raise HTTPException(status_code=400, detail="ElevenLabs backend not enabled")
+
+    if not elevenlabs_client or not elevenlabs_agent_id:
+        raise HTTPException(status_code=503, detail="ElevenLabs not initialized")
+
+    try:
+        signed_url = get_signed_url(elevenlabs_client, elevenlabs_agent_id)
+        return {"signedUrl": signed_url, "agentId": elevenlabs_agent_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.websocket("/ws")
