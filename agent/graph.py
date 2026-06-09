@@ -9,7 +9,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 
-from parameters import VisualParameters, to_frontend_params
+from parameters import AgentResponse
 from prompt import SYSTEM_PROMPT
 
 
@@ -21,59 +21,6 @@ class AgentState(TypedDict):
     pending_speech: Optional[str]
 
 
-def parse_params_from_response(response: str) -> tuple[str, Optional[dict]]:
-    """
-    Extract parameters from the response text.
-
-    Returns:
-        Tuple of (clean_text, params_dict or None)
-    """
-    import re
-
-    # Find [PARAMS: ...] block
-    pattern = r'\[PARAMS:\s*([^\]]+)\]'
-    match = re.search(pattern, response)
-
-    params = None
-    if match:
-        # Parse the parameters
-        params_str = match.group(1)
-        params = {}
-
-        for pair in params_str.split(','):
-            pair = pair.strip()
-            if '=' in pair:
-                key, value = pair.split('=', 1)
-                key = key.strip()
-                value = value.strip()
-
-                # Convert to float and add to params
-                try:
-                    params[key] = float(value)
-                except ValueError:
-                    pass  # Skip malformed values
-
-    # Remove the params block from the text
-    clean_text = re.sub(pattern, '', response).strip()
-
-    # Remove leaked parameter-related phrases (LLM sometimes doesn't follow format)
-    leaked_phrases = [
-        r'(?i)parameters?\s*(set|adjusted|changed|updated|configured)\.?',
-        r'(?i)adjusting\s*(the\s*)?parameters?\.?',
-        r'(?i)setting\s*(the\s*)?parameters?\.?',
-        r'(?i)updating\s*(the\s*)?parameters?\.?',
-        r'(?i)visual\s*(settings?|params?)\s*(set|adjusted|changed)?\.?',
-    ]
-    for phrase in leaked_phrases:
-        clean_text = re.sub(phrase, '', clean_text).strip()
-
-    # Clean up any double spaces or trailing punctuation artifacts
-    clean_text = re.sub(r'\s{2,}', ' ', clean_text).strip()
-    clean_text = re.sub(r'^\.\s*', '', clean_text).strip()
-
-    return clean_text, params
-
-
 def create_agent():
     """Create the LangGraph agent."""
 
@@ -82,9 +29,11 @@ def create_agent():
     llm = ChatGroq(
         model="llama-3.1-8b-instant",
         api_key=os.getenv("GROQ_API_KEY"),
-        max_tokens=80,
         temperature=0.7
     )
+
+    # Use structured output to guarantee valid response format
+    structured_llm = llm.with_structured_output(AgentResponse)
 
     def process_input(state: AgentState) -> AgentState:
         """Process user input and generate response with parameter changes."""
@@ -93,15 +42,16 @@ def create_agent():
         # Always prepend system message to reinforce personality
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
-        # Get LLM response
-        response = llm.invoke(messages)
-        response_text = response.content
+        # Get structured LLM response
+        response: AgentResponse = structured_llm.invoke(messages)
+        print(f"[LLM] Speech: {response.speech}")
 
-        # Parse out any parameter changes
-        clean_text, params = parse_params_from_response(response_text)
+        # Extract params from the structured response
+        params = response.get_params_dict()
+        print(f"[LLM] Params: {params}")
 
         # Update state
-        new_messages = list(state["messages"]) + [AIMessage(content=clean_text)]
+        new_messages = list(state["messages"]) + [AIMessage(content=response.speech)]
 
         # Merge new params with current
         current_params = state.get("current_params", {})
@@ -112,7 +62,7 @@ def create_agent():
             "messages": new_messages,
             "current_params": current_params,
             "pending_params": params,
-            "pending_speech": clean_text
+            "pending_speech": response.speech
         }
 
     # Build the graph

@@ -14,21 +14,21 @@ class VisualParameters(BaseModel):
         default=None,
         ge=0.0,
         le=0.3,
-        description="Edge softness. 0 = sharp/crystalline edges, 0.3 = soft/organic/melted edges"
+        description="Edge softness. 0 = sharp edges, 0.3 = soft/melted"
     )
 
     domain_warp: Optional[float] = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="Spatial distortion. 0 = rigid/structured geometry, 1 = fluid/wavy/dreamlike"
+        description="Spatial distortion. 0 = rigid, 1 = fluid/dreamlike"
     )
 
     breathing_speed: Optional[float] = Field(
         default=None,
         ge=0.0,
         le=3.0,
-        description="Pulsation rate. 0 = completely still, 3 = rapid breathing/alive"
+        description="Pulsation rate. 0 = still, 3 = rapid"
     )
 
     layer_2_density: Optional[float] = Field(
@@ -67,19 +67,17 @@ class VisualParameters(BaseModel):
     )
 
 
-# Schema description for the LLM
-PARAMETER_SCHEMA_DESCRIPTION = """
-You control a fractal corridor visualization. Adjust these parameters:
+class AgentResponse(VisualParameters):
+    """Structured response from the agent: speech + visual parameters."""
 
-- rounding (0.0-0.3): 0=sharp edges, 0.3=soft/melted
-- domain_warp (0.0-0.4): 0=rigid geometry, 0.4=fluid/dreamlike
-- breathing_speed (0.1-2.0): 0.1=still, 2.0=rapid pulse
-- layer_2_density (0.1-1.0): 0.1=hollow, 1.0=solid
-- layer_3_density (0.1-1.0): 0.1=hollow, 1.0=solid
-- base_color_r, base_color_g, base_color_b (0.0-1.0): RGB color
+    speech: str = Field(
+        description="HAL 9000's cryptic response, max 10 words, ending with a question"
+    )
 
-Color presets: white(0.95,0.95,0.97), red(0.8,0.2,0.2), blue(0.3,0.4,0.9), gold(0.9,0.7,0.3), green(0.3,0.8,0.4), purple(0.6,0.3,0.8)
-"""
+    def get_params_dict(self) -> Optional[dict]:
+        """Extract only the visual parameters (excluding speech) as a dict."""
+        params = self.model_dump(exclude={"speech"}, exclude_none=True)
+        return params if params else None
 
 
 # Mapping from our snake_case to the frontend's camelCase

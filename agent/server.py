@@ -94,6 +94,8 @@ class ConnectionManager:
 
         # Get agent response
         response_text, params = agent.process_user_input(text)
+        print(f"[AGENT] Speech: {response_text}")
+        print(f"[AGENT] Params: {params}")
 
         # Send parameter updates if any
         if params:
