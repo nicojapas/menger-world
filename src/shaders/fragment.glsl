@@ -173,9 +173,9 @@ float map(vec3 p) {
     );
     vec3 wp = p + warp * domainWarp;
 
-    // Breathing multipliers
+    // Breathing multipliers (scaled down for subtlety)
     float bEnabled = breathingEnabled;
-    float bScale = breathingScale;
+    float bScale = breathingScale * 0.3;
     float bSpeed = breathingSpeed;
 
     // Layer 1: Large frame (8 units)
