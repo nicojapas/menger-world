@@ -7,7 +7,6 @@ import {
     SEGMENT_LENGTH,
     WAYPOINT_COUNT,
     LOOP_Z_SPAN,
-    WAYPOINTS,
     SEGMENT_Z_BASE,
     SEGMENT_Z_NEXT,
     CAMERA_TIME_SCALE,
@@ -39,20 +38,3 @@ export function getCameraZ(segment, depth) {
     return loopOffset + zBase + (zNext - zBase) * depth;
 }
 
-/**
- * Get waypoint position by index
- * @param {number} index - Waypoint index (will be wrapped to 0-7)
- * @returns {number[]} [x, y, z] position
- */
-export function getWaypoint(index) {
-    return WAYPOINTS[index % WAYPOINT_COUNT];
-}
-
-/**
- * Check if a segment is a pre-turn segment (sound should trigger near end)
- * @param {number} segment - Segment index
- * @returns {boolean}
- */
-export function isPreTurnSegment(segment) {
-    return segment === 0 || segment === 2 || segment === 4 || segment === 6;
-}

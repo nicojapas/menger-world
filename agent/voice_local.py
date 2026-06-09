@@ -23,8 +23,6 @@ class LocalVoiceSynthesizer:
 
     def _load_model(self):
         """Download and load the Piper voice model."""
-        print(f"Loading Piper TTS model from {self.model_repo}...")
-
         # Download model files from Hugging Face
         cache_dir = Path(__file__).parent / ".cache" / "piper"
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -46,12 +44,8 @@ class LocalVoiceSynthesizer:
 
             # Load the voice
             self.voice = PiperVoice.load(model_path, config_path=config_path)
-            print("Piper TTS model loaded successfully")
 
         except Exception as e:
-            print(f"Error loading Piper model: {e}")
-            import traceback
-            traceback.print_exc()
             raise RuntimeError(f"Could not load Piper TTS model: {e}")
 
     def synthesize(self, text: str) -> bytes:
@@ -73,7 +67,6 @@ class LocalVoiceSynthesizer:
             audio_chunks.append(chunk.audio_int16_bytes)
 
         raw_pcm = b"".join(audio_chunks)
-        print(f"Raw PCM audio: {len(raw_pcm)} bytes")
 
         # Wrap raw PCM in WAV format
         wav_buffer = io.BytesIO()
@@ -84,9 +77,7 @@ class LocalVoiceSynthesizer:
             wav_file.writeframes(raw_pcm)
 
         wav_buffer.seek(0)
-        result = wav_buffer.read()
-        print(f"WAV audio: {len(result)} bytes")
-        return result
+        return wav_buffer.read()
 
     def synthesize_base64(self, text: str) -> str:
         """

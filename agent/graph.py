@@ -42,13 +42,20 @@ def create_agent():
         # Always prepend system message to reinforce personality
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
-        # Get structured LLM response
-        response: AgentResponse = structured_llm.invoke(messages)
-        print(f"[LLM] Speech: {response.speech}")
+        # Get structured LLM response with error handling
+        try:
+            response: AgentResponse = structured_llm.invoke(messages)
+        except Exception:
+            # Fallback response on LLM failure
+            return {
+                "messages": list(state["messages"]) + [AIMessage(content="I'm having trouble processing that.")],
+                "current_params": state.get("current_params", {}),
+                "pending_params": None,
+                "pending_speech": "I'm having trouble processing that."
+            }
 
         # Extract params from the structured response
         params = response.get_params_dict()
-        print(f"[LLM] Params: {params}")
 
         # Update state
         new_messages = list(state["messages"]) + [AIMessage(content=response.speech)]

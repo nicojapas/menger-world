@@ -47,10 +47,6 @@ export const WAYPOINTS = [
 export const SEGMENT_Z_BASE = [0, 16, 16, 32, 32, 48, 48, 64];
 export const SEGMENT_Z_NEXT = [16, 16, 32, 32, 48, 48, 64, 64];
 
-// Colors
-export const BASE_COLOR = [0.95, 0.95, 0.97];
-export const TURN_COLOR = [0.55, 0.08, 0.05];
-
 // Audio layer configuration
 export const AUDIO_LOOPS = [
     { name: 'drone', file: 'loops/drone.mp3', baseVolume: 0.5 },

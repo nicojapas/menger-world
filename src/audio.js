@@ -265,14 +265,12 @@ class AudioSystem {
      * @param {Object} params
      * @param {number} params.time - Current animation time
      * @param {number} params.depth - Camera depth in corridor (0-1, affects filter)
-     * @param {number} params.speed - Camera movement speed (affects layer mix)
-     * @param {number} params.twist - Current corridor twist amount
      * @param {number} params.camZ - Camera Z position for breathing sync
      */
     update(params) {
         if (!this.started || !this.ctx) return;
 
-        const { time = 0, depth = 0.5, speed = 1, twist = 0 } = params;
+        const { time = 0, depth = 0.5 } = params;
 
         // Lowpass filter based on depth - deeper = more muffled
         const lpFreq = 2000 + (1 - depth) * 18000;

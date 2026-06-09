@@ -69,26 +69,6 @@ float sdCrossCircle(vec3 q) {
     return min(length(q.xy), min(length(q.yz), length(q.xz)));
 }
 
-float voronoi(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    float minDist = 1.0;
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                vec3 lattice = vec3(float(x), float(y), float(z));
-                // Función de aleatoriedad simple para las posiciones de las celdas
-                vec3 randSign = sin(dot(i + lattice, vec3(7.0, 157.0, 113.0))) * vec3(43758.5453);
-                vec3 offset = fract(randSign);
-                vec3 r = lattice + offset - f;
-                float d = dot(r, r);
-                minDist = min(minDist, d);
-            }
-        }
-    }
-    return sqrt(minDist);
-}
-
 // Starfield background
 vec3 stars(vec3 rd) {
     vec3 col = vec3(0.0);

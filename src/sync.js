@@ -12,7 +12,7 @@ import {
     TURN_SOUND_TRIGGER,
     TURN_PAN,
 } from './constants.js';
-import { getSegmentInfo, getCameraZ, isPreTurnSegment } from './camera.js';
+import { getSegmentInfo, getCameraZ } from './camera.js';
 
 /**
  * SyncState - tracks state for audio-visual synchronization

@@ -1,9 +1,31 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Cache
+.cache/
+agent/.cache/
+.huggingface/
+
+# Environment
+.env
+.env.local
+
+# Git
 .git/
 .gitignore
-.env
-*.md
-node_modules/
-agent/.venv/
-agent/__pycache__/
-**/*.pyc
-**/*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Audio loops (regenerated)
+loops/
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
