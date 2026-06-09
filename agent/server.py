@@ -26,10 +26,6 @@ print(f"Loading .env from: {env_path}")
 print(f".env exists: {env_path.exists()}")
 load_dotenv(env_path)
 
-# Debug: check if keys are loaded
-print(f"ELEVENLABS_API_KEY loaded: {'yes' if os.getenv('ELEVENLABS_API_KEY') else 'NO'}")
-print(f"GROQ_API_KEY loaded: {'yes' if os.getenv('GROQ_API_KEY') else 'NO'}")
-
 
 class ConnectionManager:
     """Manages WebSocket connections."""

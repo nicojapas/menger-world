@@ -5,14 +5,12 @@
 import { Renderer, loadShader } from './src/renderer.js';
 import { SyncState } from './src/sync.js';
 import audioSystem from './src/audio.js';
-import { DebugUI } from './src/debug.js';
 import { AgentClient, createAgentUI } from './src/agent-client.js';
 
 // Initialize renderer
 const canvas = document.getElementById('canvas');
 const renderer = new Renderer(canvas);
 const syncState = new SyncState();
-const debugUI = new DebugUI();
 
 // Agent client (initialized later)
 let agentClient = null;
@@ -90,22 +88,12 @@ async function init() {
     renderer.init(fragmentSource);
     renderer.resize();
 
-    // Initialize debug UI
-    debugUI.init();
-    debugUI.onChange = (values) => {
-        renderer.setDebugValues(values);
-    };
-
     // Initialize agent client (connects after user clicks to start)
     agentUI = createAgentUI();
     agentClient = new AgentClient({
         wsUrl: 'ws://localhost:8765/ws',
         onParamsChange: (params) => {
-            // Update debug UI sliders to show agent-driven changes
-            debugUI.setValues(params);
-            // Merge agent params with current debug values
-            const currentValues = debugUI.getValues();
-            renderer.setDebugValues({ ...currentValues, ...params });
+            renderer.setVisualParams(params);
         },
         onStatusChange: (status) => {
             agentUI.updateStatus(status);

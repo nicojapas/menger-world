@@ -34,28 +34,42 @@ def parse_params_from_response(response: str) -> tuple[str, Optional[dict]]:
     pattern = r'\[PARAMS:\s*([^\]]+)\]'
     match = re.search(pattern, response)
 
-    if not match:
-        return response, None
+    params = None
+    if match:
+        # Parse the parameters
+        params_str = match.group(1)
+        params = {}
 
-    # Parse the parameters
-    params_str = match.group(1)
-    params = {}
+        for pair in params_str.split(','):
+            pair = pair.strip()
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                value = value.strip()
 
-    for pair in params_str.split(','):
-        pair = pair.strip()
-        if '=' in pair:
-            key, value = pair.split('=', 1)
-            key = key.strip()
-            value = value.strip()
-
-            # Convert to appropriate type
-            if key == 'iterations':
-                params[key] = int(value)
-            else:
-                params[key] = float(value)
+                # Convert to float and add to params
+                try:
+                    params[key] = float(value)
+                except ValueError:
+                    pass  # Skip malformed values
 
     # Remove the params block from the text
     clean_text = re.sub(pattern, '', response).strip()
+
+    # Remove leaked parameter-related phrases (LLM sometimes doesn't follow format)
+    leaked_phrases = [
+        r'(?i)parameters?\s*(set|adjusted|changed|updated|configured)\.?',
+        r'(?i)adjusting\s*(the\s*)?parameters?\.?',
+        r'(?i)setting\s*(the\s*)?parameters?\.?',
+        r'(?i)updating\s*(the\s*)?parameters?\.?',
+        r'(?i)visual\s*(settings?|params?)\s*(set|adjusted|changed)?\.?',
+    ]
+    for phrase in leaked_phrases:
+        clean_text = re.sub(phrase, '', clean_text).strip()
+
+    # Clean up any double spaces or trailing punctuation artifacts
+    clean_text = re.sub(r'\s{2,}', ' ', clean_text).strip()
+    clean_text = re.sub(r'^\.\s*', '', clean_text).strip()
 
     return clean_text, params
 
@@ -154,12 +168,16 @@ class VisualAgent:
 
     def get_initial_greeting(self) -> tuple[str, Optional[dict]]:
         """Get the agent's opening message."""
-        greeting = "Hello, good friend. How are you feeling today?"
+        greeting = "Hello good friend. How are you feeling today?"
         initial_params = {
             "rounding": 0.02,
             "domain_warp": 0.0,
             "breathing_speed": 1.2,
-            "iterations": 6
+            "layer_2_density": 0.5,
+            "layer_3_density": 0.5,
+            "base_color_r": 0.95,
+            "base_color_g": 0.95,
+            "base_color_b": 0.97
         }
         return greeting, initial_params
 

@@ -5,23 +5,26 @@ uniform float time;
 uniform float turnIntensity;
 uniform float isAlternate;
 
-// Debug controls
-uniform float breathingScale;
-uniform float breathingSpeed;
-uniform float iterations;
-uniform float domainWarp;
-uniform float twistAmount;
-uniform float fogStart;
-uniform float lightIntensity;
-uniform float aoStrength;
-uniform float layer3Anim;
-uniform float layer4Anim;
-uniform float layer5Anim;
-uniform float layer6Anim;
-uniform float cameraSpeed;
-uniform float layer2Density;
-uniform float layer3Density;
-uniform float rounding;
+// Visual parameters (controlled by agent)
+uniform float breathingSpeed;  // default: 1.0
+uniform float domainWarp;      // default: 0.0
+uniform float layer2Density;   // default: 0.5
+uniform float layer3Density;   // default: 0.5
+uniform float rounding;        // default: 0.0
+uniform vec3 baseColor;        // default: vec3(0.95, 0.95, 0.97)
+
+// Fixed visual parameters
+const float breathingScale = 0.1;
+const float iterations = 6.0;
+const float twistAmount = 0.05;
+const float fogStart = 0.4;
+const float lightIntensity = 1.0;
+const float aoStrength = 1.0;
+const float layer3Anim = 0.2;
+const float layer4Anim = 0.25;
+const float layer5Anim = 0.08;
+const float layer6Anim = 0.04;
+const float cameraSpeed = 1.0;
 
 #define FAR 30.0
 #define MAX_STEPS 128
@@ -334,9 +337,9 @@ void main() {
         float ao = calcAO(p, n);
         ao = mix(1.0, ao, aoStrength); // Apply AO strength
 
-        // Material color - white normally, fades to red or ice blue during turns
+        // Material color - base color fades to red or ice blue during turns
         float tex1 = fbm(p * 3.0);
-        vec3 baseCol = vec3(0.95, 0.95, 0.97);
+        vec3 baseCol = baseColor;
         vec3 redCol = vec3(0.4, 0.02, 0.0);
         vec3 iceBlueCol = vec3(0.8, 0.8, 0.97);
         vec3 turnCol = isAlternate > 0.5 ? iceBlueCol : redCol;
