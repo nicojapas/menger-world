@@ -1,0 +1,22 @@
+# fly.toml - Fly.io deployment configuration
+app = "cool-room"
+primary_region = "iad"  # Change to your nearest region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENV = "production"
+  USE_ELEVENLABS = "false"
+
+[http_service]
+  internal_port = 8765
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
