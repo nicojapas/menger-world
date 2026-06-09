@@ -120,12 +120,17 @@ export class Renderer {
             layer6Anim: gl.getUniformLocation(this.program, 'layer6Anim'),
             cameraSpeed: gl.getUniformLocation(this.program, 'cameraSpeed'),
             turnVisualEnabled: gl.getUniformLocation(this.program, 'turnVisualEnabled'),
+            layer2Noise: gl.getUniformLocation(this.program, 'layer2Noise'),
+            layer3Noise: gl.getUniformLocation(this.program, 'layer3Noise'),
+            layer4Noise: gl.getUniformLocation(this.program, 'layer4Noise'),
+            layer5Noise: gl.getUniformLocation(this.program, 'layer5Noise'),
+            layer6Noise: gl.getUniformLocation(this.program, 'layer6Noise'),
         };
 
         // Default debug values
         this.debugValues = {
             breathingEnabled: 1.0,
-            breathingScale: 1.0,
+            breathingScale: 0.5,
             breathingSpeed: 1.0,
             iterations: 6,
             domainWarp: 0.2,
@@ -140,6 +145,8 @@ export class Renderer {
             cameraSpeed: 1.0,
             turnSoundsEnabled: 1.0,
             turnVisualEnabled: 1.0,
+            layer2Noise: 0.0,
+            layer3Noise: 0.0,
         };
     }
 
@@ -190,6 +197,11 @@ export class Renderer {
         gl.uniform1f(this.uniforms.layer6Anim, d.layer6Anim);
         gl.uniform1f(this.uniforms.cameraSpeed, d.cameraSpeed);
         gl.uniform1f(this.uniforms.turnVisualEnabled, d.turnVisualEnabled);
+        gl.uniform1f(this.uniforms.layer2Noise, d.layer2Noise);
+        gl.uniform1f(this.uniforms.layer3Noise, d.layer3Noise);
+        gl.uniform1f(this.uniforms.layer4Noise, d.layer4Noise);
+        gl.uniform1f(this.uniforms.layer5Noise, d.layer5Noise);
+        gl.uniform1f(this.uniforms.layer6Noise, d.layer6Noise);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }

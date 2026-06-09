@@ -4,7 +4,7 @@
 
 const DEFAULT_VALUES = {
     breathingEnabled: 1.0,
-    breathingScale: 1.0,
+    breathingScale: 0.1,
     breathingSpeed: 1.0,
     iterations: 6,
     domainWarp: 0.2,
@@ -20,6 +20,9 @@ const DEFAULT_VALUES = {
     cameraSpeed: 1.0,
     turnSoundsEnabled: 1.0,
     turnVisualEnabled: 1.0,
+    // Layer noise
+    layer2Noise: 0.5,
+    layer3Noise: 0.5,
 };
 
 export class DebugUI {
@@ -133,6 +136,12 @@ export class DebugUI {
                 ${this.createSlider('layer4Anim', 'Layer 4 (1u)', 0, 0.5, 0.01)}
                 ${this.createSlider('layer5Anim', 'Layer 5 (0.5u)', 0, 0.2, 0.01)}
                 ${this.createSlider('layer6Anim', 'Layer 6 (0.25u)', 0, 0.1, 0.01)}
+            </div>
+
+            <div class="section">
+                <div class="section-title">Layer Hole Noise</div>
+                ${this.createSlider('layer2Noise', 'Layer 2 (4u)', 0, 1, 0.01)}
+                ${this.createSlider('layer3Noise', 'Layer 3 (2u)', 0, 1, 0.01)}
             </div>
 
             <div class="section">

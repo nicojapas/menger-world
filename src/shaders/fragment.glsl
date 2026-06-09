@@ -21,6 +21,8 @@ uniform float layer5Anim;
 uniform float layer6Anim;
 uniform float cameraSpeed;
 uniform float turnVisualEnabled;
+uniform float layer2Noise;
+uniform float layer3Noise;
 
 #define FAR 30.0
 #define MAX_STEPS 128
@@ -54,6 +56,35 @@ float fbm(vec3 p) {
     f += 0.125 * noise(p); p *= 2.01;
     f += 0.0625 * noise(p);
     return f / 0.9375;
+}
+
+// Cross SDF - intersection of 3 axis-aligned square rods
+float sdCross(vec3 q) {
+    return min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z)));
+}
+
+float sdCrossCircle(vec3 q) {
+    return min(length(q.xy), min(length(q.yz), length(q.xz)));
+}
+
+float voronoi(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    float minDist = 1.0;
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                vec3 lattice = vec3(float(x), float(y), float(z));
+                // Función de aleatoriedad simple para las posiciones de las celdas
+                vec3 randSign = sin(dot(i + lattice, vec3(7.0, 157.0, 113.0))) * vec3(43758.5453);
+                vec3 offset = fract(randSign);
+                vec3 r = lattice + offset - f;
+                float d = dot(r, r);
+                minDist = min(minDist, d);
+            }
+        }
+    }
+    return sqrt(minDist);
 }
 
 // Starfield background
@@ -175,17 +206,17 @@ float map(vec3 p) {
 
     // Breathing multipliers (scaled down for subtlety)
     float bEnabled = breathingEnabled;
-    float bScale = breathingScale * 0.3;
+    float bScale = breathingScale * 0.1;
     float bSpeed = breathingSpeed;
 
     // Layer 1: Large frame (8 units)
     vec3 q = abs(mod(wp, 8.0) - 4.0);
-    float d = min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 8.0 / 3.0;
+    float d = sdCrossCircle(q) - 8.0 / 3.0;
 
     // Layer 2: (4 units)
     if (iterations >= 2.0) {
         q = abs(mod(wp, 4.0) - 2.0);
-        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - 4.0 / 3.0);
+        d = max(d, sdCross(q) - (2.0 - layer2Noise));
     }
 
     // Layer 3: (2 units) - slow breathing
@@ -193,7 +224,7 @@ float map(vec3 p) {
         q = abs(mod(wp, 2.0) - 1.0);
         float phase3 = oz * 0.05 + time * 0.3 * bSpeed * bEnabled;
         float anim3 = 2.0 / 3.0 + layer3Anim * bScale * sin(phase3);
-        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim3);
+        d = max(d, sdCross(q) - (anim3 + 0.5 - layer3Noise));
     }
 
     // Layer 4: finer detail - faster counter-breathing
@@ -201,7 +232,7 @@ float map(vec3 p) {
         q = abs(mod(wp, 1.0) - 0.5);
         float phase4 = oz * 0.15 - time * 0.7 * bSpeed * bEnabled;
         float anim4 = 1.0 / 3.0 + layer4Anim * bScale * sin(phase4);
-        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim4);
+        d = max(d, sdCross(q) - (anim4));
     }
 
     // Layer 5: very fine detail (0.5 units) - subtle shimmer
@@ -209,7 +240,7 @@ float map(vec3 p) {
         q = abs(mod(wp, 0.5) - 0.25);
         float phase5 = oz * 0.25 + time * 1.1 * bSpeed * bEnabled;
         float anim5 = 0.5 / 3.0 + layer5Anim * bScale * sin(phase5);
-        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim5);
+        d = max(d, sdCross(q) - (anim5));
     }
 
     // Layer 6: micro detail (0.25 units) - fast ripple
@@ -217,11 +248,11 @@ float map(vec3 p) {
         q = abs(mod(wp, 0.25) - 0.125);
         float phase6 = oz * 0.4 - time * 1.5 * bSpeed * bEnabled;
         float anim6 = 0.25 / 3.0 + layer6Anim * bScale * sin(phase6);
-        d = max(d, min(max(q.x, q.y), min(max(q.y, q.z), max(q.x, q.z))) - anim6);
+        d = max(d, sdCross(q) - anim6);
     }
 
     float turnFx = max(turnIntensity - 0.2, 0.0);
-    return d + noise(p * 2.0) * turnFx * 0.15 * turnVisualEnabled;
+    return d + noise(p * 2.0) * (turnFx) * 0.0 * turnVisualEnabled;
 }
 
 float trace(vec3 ro, vec3 rd) {
