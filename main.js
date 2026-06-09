@@ -6,6 +6,7 @@ import { Renderer, loadShader } from './src/renderer.js';
 import { SyncState } from './src/sync.js';
 import audioSystem from './src/audio.js';
 import { AgentClient, createAgentUI } from './src/agent-client.js';
+import { AGENT_WS_URL } from './config.js';
 
 // Initialize renderer
 const canvas = document.getElementById('canvas');
@@ -91,7 +92,7 @@ async function init() {
     // Initialize agent client (connects after user clicks to start)
     agentUI = createAgentUI();
     agentClient = new AgentClient({
-        wsUrl: 'ws://localhost:8765/ws',
+        wsUrl: AGENT_WS_URL,
         onParamsChange: (params) => {
             renderer.setVisualParams(params);
         },

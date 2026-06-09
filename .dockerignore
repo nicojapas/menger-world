@@ -1,0 +1,9 @@
+.git/
+.gitignore
+.env
+*.md
+node_modules/
+agent/.venv/
+agent/__pycache__/
+**/*.pyc
+**/*.pyo

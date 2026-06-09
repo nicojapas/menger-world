@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
 from graph import VisualAgent
@@ -181,8 +183,18 @@ app.add_middleware(
 )
 
 
+# Serve static frontend files
+STATIC_DIR = ROOT_DIR / "static"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
 @app.get("/")
 async def root():
+    """Serve the main index.html"""
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
     return {"status": "ok", "message": "Visual Agent Server"}
 
 
@@ -215,9 +227,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", 8765))
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8765,
-        reload=True
+        port=port,
+        reload=os.getenv("ENV") != "production"
     )
