@@ -1,0 +1,168 @@
+"""
+LangGraph agent for controlling visual parameters based on conversation.
+"""
+
+import os
+from typing import TypedDict, Annotated, Sequence, Optional
+from langchain_groq import ChatGroq
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+
+from parameters import VisualParameters, to_frontend_params
+from prompt import SYSTEM_PROMPT
+
+
+class AgentState(TypedDict):
+    """State maintained across the conversation."""
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    current_params: dict
+    pending_params: Optional[dict]
+    pending_speech: Optional[str]
+
+
+def parse_params_from_response(response: str) -> tuple[str, Optional[dict]]:
+    """
+    Extract parameters from the response text.
+
+    Returns:
+        Tuple of (clean_text, params_dict or None)
+    """
+    import re
+
+    # Find [PARAMS: ...] block
+    pattern = r'\[PARAMS:\s*([^\]]+)\]'
+    match = re.search(pattern, response)
+
+    if not match:
+        return response, None
+
+    # Parse the parameters
+    params_str = match.group(1)
+    params = {}
+
+    for pair in params_str.split(','):
+        pair = pair.strip()
+        if '=' in pair:
+            key, value = pair.split('=', 1)
+            key = key.strip()
+            value = value.strip()
+
+            # Convert to appropriate type
+            if key == 'iterations':
+                params[key] = int(value)
+            else:
+                params[key] = float(value)
+
+    # Remove the params block from the text
+    clean_text = re.sub(pattern, '', response).strip()
+
+    return clean_text, params
+
+
+def create_agent():
+    """Create the LangGraph agent."""
+
+    # Initialize the LLM (Groq - free tier with fast inference)
+    # Using 8B model: cheaper, faster, and more obedient to persona instructions
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        api_key=os.getenv("GROQ_API_KEY"),
+        max_tokens=80,
+        temperature=0.7
+    )
+
+    def process_input(state: AgentState) -> AgentState:
+        """Process user input and generate response with parameter changes."""
+        messages = list(state["messages"])
+
+        # Always prepend system message to reinforce personality
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+
+        # Get LLM response
+        response = llm.invoke(messages)
+        response_text = response.content
+
+        # Parse out any parameter changes
+        clean_text, params = parse_params_from_response(response_text)
+
+        # Update state
+        new_messages = list(state["messages"]) + [AIMessage(content=clean_text)]
+
+        # Merge new params with current
+        current_params = state.get("current_params", {})
+        if params:
+            current_params = {**current_params, **params}
+
+        return {
+            "messages": new_messages,
+            "current_params": current_params,
+            "pending_params": params,
+            "pending_speech": clean_text
+        }
+
+    # Build the graph
+    workflow = StateGraph(AgentState)
+
+    # Add nodes
+    workflow.add_node("process", process_input)
+
+    # Set entry point
+    workflow.set_entry_point("process")
+
+    # Add edge to end
+    workflow.add_edge("process", END)
+
+    # Compile
+    return workflow.compile()
+
+
+class VisualAgent:
+    """High-level interface to the visual control agent."""
+
+    def __init__(self):
+        self.graph = create_agent()
+        self.state: AgentState = {
+            "messages": [],
+            "current_params": {},
+            "pending_params": None,
+            "pending_speech": None
+        }
+
+    def process_user_input(self, user_text: str) -> tuple[str, Optional[dict]]:
+        """
+        Process user input and return agent response with any parameter changes.
+
+        Args:
+            user_text: What the user said
+
+        Returns:
+            Tuple of (agent_response_text, params_dict or None)
+        """
+        # Add user message to state
+        self.state["messages"] = list(self.state["messages"]) + [
+            HumanMessage(content=user_text)
+        ]
+
+        # Run the graph
+        result = self.graph.invoke(self.state)
+
+        # Update our state
+        self.state = result
+
+        return result["pending_speech"], result["pending_params"]
+
+    def get_initial_greeting(self) -> tuple[str, Optional[dict]]:
+        """Get the agent's opening message."""
+        greeting = "Hello, good friend. How are you feeling today?"
+        initial_params = {
+            "rounding": 0.02,
+            "domain_warp": 0.0,
+            "breathing_speed": 1.2,
+            "iterations": 6
+        }
+        return greeting, initial_params
+
+    def get_current_params(self) -> dict:
+        """Get the current parameter values."""
+        return self.state["current_params"]

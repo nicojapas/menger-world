@@ -3,11 +3,10 @@
  */
 
 const DEFAULT_VALUES = {
-    breathingEnabled: 1.0,
     breathingScale: 0.1,
     breathingSpeed: 1.0,
     iterations: 6,
-    domainWarp: 0.2,
+    domainWarp: 0.0,
     twistAmount: 0.05,
     fogStart: 0.4,
     lightIntensity: 1.0,
@@ -18,11 +17,9 @@ const DEFAULT_VALUES = {
     layer6Anim: 0.04,
     // Camera & turns
     cameraSpeed: 1.0,
-    turnSoundsEnabled: 1.0,
-    turnVisualEnabled: 1.0,
     // Layer noise
-    layer2Noise: 0.5,
-    layer3Noise: 0.5,
+    layer2Density: 0.5,
+    layer3Density: 0.5,
     // Geometry rounding
     rounding: 0.0,
 };
@@ -119,13 +116,6 @@ export class DebugUI {
             <h3>🎛️ Debug Controls</h3>
 
             <div class="section">
-                <div class="section-title">Camera & Turns</div>
-                ${this.createSlider('cameraSpeed', 'Travel Speed', 0, 3, 0.1)}
-                <button id="btn-turnSounds">Turn Sounds: ON</button>
-                <button id="btn-turnVisual">Turn Visual: ON</button>
-            </div>
-
-            <div class="section">
                 <div class="section-title">Breathing Animation</div>
                 <button id="btn-breathing">Breathing: ON</button>
                 ${this.createSlider('breathingScale', 'Scale', 0, 3, 0.1)}
@@ -142,8 +132,8 @@ export class DebugUI {
 
             <div class="section">
                 <div class="section-title">Layer Hole Noise</div>
-                ${this.createSlider('layer2Noise', 'Layer 2 (4u)', 0, 1, 0.01)}
-                ${this.createSlider('layer3Noise', 'Layer 3 (2u)', 0, 1, 0.01)}
+                ${this.createSlider('layer2Density', 'Layer 2 (4u)', 0, 1, 0.01)}
+                ${this.createSlider('layer3Density', 'Layer 3 (2u)', 0, 1, 0.01)}
             </div>
 
             <div class="section">
@@ -187,46 +177,12 @@ export class DebugUI {
     }
 
     bindEvents() {
-        // Turn sounds toggle
-        const btnTurnSounds = document.getElementById('btn-turnSounds');
-        btnTurnSounds.addEventListener('click', () => {
-            this.values.turnSoundsEnabled = this.values.turnSoundsEnabled > 0.5 ? 0 : 1;
-            btnTurnSounds.textContent = `Turn Sounds: ${this.values.turnSoundsEnabled > 0.5 ? 'ON' : 'OFF'}`;
-            btnTurnSounds.classList.toggle('active', this.values.turnSoundsEnabled > 0.5);
-            this.emitChange();
-        });
-        btnTurnSounds.classList.add('active');
-
-        // Turn visual toggle
-        const btnTurnVisual = document.getElementById('btn-turnVisual');
-        btnTurnVisual.addEventListener('click', () => {
-            this.values.turnVisualEnabled = this.values.turnVisualEnabled > 0.5 ? 0 : 1;
-            btnTurnVisual.textContent = `Turn Visual: ${this.values.turnVisualEnabled > 0.5 ? 'ON' : 'OFF'}`;
-            btnTurnVisual.classList.toggle('active', this.values.turnVisualEnabled > 0.5);
-            this.emitChange();
-        });
-        btnTurnVisual.classList.add('active');
-
-        // Breathing toggle
-        const btnBreathing = document.getElementById('btn-breathing');
-        btnBreathing.addEventListener('click', () => {
-            this.values.breathingEnabled = this.values.breathingEnabled > 0.5 ? 0 : 1;
-            btnBreathing.textContent = `Breathing: ${this.values.breathingEnabled > 0.5 ? 'ON' : 'OFF'}`;
-            btnBreathing.classList.toggle('active', this.values.breathingEnabled > 0.5);
-            this.emitChange();
-        });
-        btnBreathing.classList.add('active');
-
         // Reset button
         document.getElementById('btn-reset').addEventListener('click', () => {
             this.values = { ...DEFAULT_VALUES };
             this.updateAllSliders();
             btnBreathing.textContent = 'Breathing: ON';
             btnBreathing.classList.add('active');
-            btnTurnSounds.textContent = 'Turn Sounds: ON';
-            btnTurnSounds.classList.add('active');
-            btnTurnVisual.textContent = 'Turn Visual: ON';
-            btnTurnVisual.classList.add('active');
             this.emitChange();
         });
 
@@ -281,5 +237,13 @@ export class DebugUI {
 
     getValues() {
         return this.values;
+    }
+
+    /**
+     * Set values from external source (e.g., agent) and update sliders
+     */
+    setValues(newValues) {
+        Object.assign(this.values, newValues);
+        this.updateAllSliders();
     }
 }

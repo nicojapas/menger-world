@@ -105,7 +105,6 @@ export class Renderer {
             turnIntensity: gl.getUniformLocation(this.program, 'turnIntensity'),
             isAlternate: gl.getUniformLocation(this.program, 'isAlternate'),
             // Debug controls
-            breathingEnabled: gl.getUniformLocation(this.program, 'breathingEnabled'),
             breathingScale: gl.getUniformLocation(this.program, 'breathingScale'),
             breathingSpeed: gl.getUniformLocation(this.program, 'breathingSpeed'),
             iterations: gl.getUniformLocation(this.program, 'iterations'),
@@ -119,9 +118,8 @@ export class Renderer {
             layer5Anim: gl.getUniformLocation(this.program, 'layer5Anim'),
             layer6Anim: gl.getUniformLocation(this.program, 'layer6Anim'),
             cameraSpeed: gl.getUniformLocation(this.program, 'cameraSpeed'),
-            turnVisualEnabled: gl.getUniformLocation(this.program, 'turnVisualEnabled'),
-            layer2Noise: gl.getUniformLocation(this.program, 'layer2Noise'),
-            layer3Noise: gl.getUniformLocation(this.program, 'layer3Noise'),
+            layer2Density: gl.getUniformLocation(this.program, 'layer2Density'),
+            layer3Density: gl.getUniformLocation(this.program, 'layer3Density'),
             layer4Noise: gl.getUniformLocation(this.program, 'layer4Noise'),
             layer5Noise: gl.getUniformLocation(this.program, 'layer5Noise'),
             layer6Noise: gl.getUniformLocation(this.program, 'layer6Noise'),
@@ -130,11 +128,10 @@ export class Renderer {
 
         // Default debug values
         this.debugValues = {
-            breathingEnabled: 1.0,
             breathingScale: 0.5,
             breathingSpeed: 1.0,
             iterations: 6,
-            domainWarp: 0.2,
+            domainWarp: 0.0,
             twistAmount: 0.05,
             fogStart: 0.4,
             lightIntensity: 1.0,
@@ -144,10 +141,8 @@ export class Renderer {
             layer5Anim: 0.08,
             layer6Anim: 0.04,
             cameraSpeed: 1.0,
-            turnSoundsEnabled: 1.0,
-            turnVisualEnabled: 1.0,
-            layer2Noise: 0.0,
-            layer3Noise: 0.0,
+            layer2Density: 0.0,
+            layer3Density: 0.0,
             rounding: 0.0,
         };
     }
@@ -184,7 +179,6 @@ export class Renderer {
 
         // Debug uniforms
         const d = this.debugValues;
-        gl.uniform1f(this.uniforms.breathingEnabled, d.breathingEnabled);
         gl.uniform1f(this.uniforms.breathingScale, d.breathingScale);
         gl.uniform1f(this.uniforms.breathingSpeed, d.breathingSpeed);
         gl.uniform1f(this.uniforms.iterations, d.iterations);
@@ -198,9 +192,8 @@ export class Renderer {
         gl.uniform1f(this.uniforms.layer5Anim, d.layer5Anim);
         gl.uniform1f(this.uniforms.layer6Anim, d.layer6Anim);
         gl.uniform1f(this.uniforms.cameraSpeed, d.cameraSpeed);
-        gl.uniform1f(this.uniforms.turnVisualEnabled, d.turnVisualEnabled);
-        gl.uniform1f(this.uniforms.layer2Noise, d.layer2Noise);
-        gl.uniform1f(this.uniforms.layer3Noise, d.layer3Noise);
+        gl.uniform1f(this.uniforms.layer2Density, d.layer2Density);
+        gl.uniform1f(this.uniforms.layer3Density, d.layer3Density);
         gl.uniform1f(this.uniforms.layer4Noise, d.layer4Noise);
         gl.uniform1f(this.uniforms.layer5Noise, d.layer5Noise);
         gl.uniform1f(this.uniforms.layer6Noise, d.layer6Noise);

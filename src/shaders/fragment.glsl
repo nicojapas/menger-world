@@ -6,7 +6,6 @@ uniform float turnIntensity;
 uniform float isAlternate;
 
 // Debug controls
-uniform float breathingEnabled;
 uniform float breathingScale;
 uniform float breathingSpeed;
 uniform float iterations;
@@ -20,9 +19,8 @@ uniform float layer4Anim;
 uniform float layer5Anim;
 uniform float layer6Anim;
 uniform float cameraSpeed;
-uniform float turnVisualEnabled;
-uniform float layer2Noise;
-uniform float layer3Noise;
+uniform float layer2Density;
+uniform float layer3Density;
 uniform float rounding;
 
 #define FAR 30.0
@@ -206,7 +204,6 @@ float map(vec3 p) {
     vec3 wp = p + warp * domainWarp;
 
     // Breathing multipliers (scaled down for subtlety)
-    float bEnabled = breathingEnabled;
     float bScale = breathingScale * 0.1;
     float bSpeed = breathingSpeed;
 
@@ -217,21 +214,21 @@ float map(vec3 p) {
     // Layer 2: (4 units)
     if (iterations >= 2.0) {
         q = abs(mod(wp, 4.0) - 2.0);
-        d = max(d, sdCross(q) - (2.0 - layer2Noise));
+        d = max(d, sdCross(q) - (2.0 - layer2Density));
     }
 
     // Layer 3: (2 units) - slow breathing
     if (iterations >= 3.0) {
         q = abs(mod(wp, 2.0) - 1.0);
-        float phase3 = oz * 0.05 + time * 0.3 * bSpeed * bEnabled;
+        float phase3 = oz * 0.05 + time * 0.3 * bSpeed;
         float anim3 = 2.0 / 3.0 + layer3Anim * bScale * sin(phase3);
-        d = max(d, sdCross(q) - (anim3 + 0.5 - layer3Noise));
+        d = max(d, sdCross(q) - (anim3 + 0.5 - layer3Density));
     }
 
     // Layer 4: finer detail - faster counter-breathing
     if (iterations >= 4.0) {
         q = abs(mod(wp, 1.0) - 0.5);
-        float phase4 = oz * 0.15 - time * 0.7 * bSpeed * bEnabled;
+        float phase4 = oz * 0.15 - time * 0.7 * bSpeed;
         float anim4 = 1.0 / 3.0 + layer4Anim * bScale * sin(phase4);
         d = max(d, sdCross(q) - (anim4));
     }
@@ -239,7 +236,7 @@ float map(vec3 p) {
     // Layer 5: very fine detail (0.5 units) - subtle shimmer
     if (iterations >= 5.0) {
         q = abs(mod(wp, 0.5) - 0.25);
-        float phase5 = oz * 0.25 + time * 1.1 * bSpeed * bEnabled;
+        float phase5 = oz * 0.25 + time * 1.1 * bSpeed;
         float anim5 = 0.5 / 3.0 + layer5Anim * bScale * sin(phase5);
         d = max(d, sdCross(q) - (anim5));
     }
@@ -247,7 +244,7 @@ float map(vec3 p) {
     // Layer 6: micro detail (0.25 units) - fast ripple
     if (iterations >= 6.0) {
         q = abs(mod(wp, 0.25) - 0.125);
-        float phase6 = oz * 0.4 - time * 1.5 * bSpeed * bEnabled;
+        float phase6 = oz * 0.4 - time * 1.5 * bSpeed;
         float anim6 = 0.25 / 3.0 + layer6Anim * bScale * sin(phase6);
         d = max(d, sdCross(q) - anim6);
     }
@@ -257,7 +254,7 @@ float map(vec3 p) {
     // Subtract rounding to inflate geometry and round all edges
     d -= rounding;
 
-    return d + noise(p * 2.0) * (turnFx) * 0.0 * turnVisualEnabled;
+    return d + noise(p * 2.0) * (turnFx) * 0.0;
 }
 
 float trace(vec3 ro, vec3 rd) {
@@ -343,7 +340,7 @@ void main() {
         vec3 redCol = vec3(0.4, 0.02, 0.0);
         vec3 iceBlueCol = vec3(0.8, 0.8, 0.97);
         vec3 turnCol = isAlternate > 0.5 ? iceBlueCol : redCol;
-        float effectiveTurnIntensity = turnIntensity * turnVisualEnabled;
+        float effectiveTurnIntensity = turnIntensity;
         vec3 matCol = mix(baseCol, turnCol, effectiveTurnIntensity);
         matCol *= 0.9 + tex1 * 0.1;
 
