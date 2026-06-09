@@ -183,10 +183,8 @@ app.add_middleware(
 )
 
 
-# Serve static frontend files
+# Static files directory
 STATIC_DIR = ROOT_DIR / "static"
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
@@ -223,6 +221,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+
+# Mount static files LAST so it acts as fallback for JS, CSS, etc.
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
