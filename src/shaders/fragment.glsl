@@ -23,6 +23,7 @@ uniform float cameraSpeed;
 uniform float turnVisualEnabled;
 uniform float layer2Noise;
 uniform float layer3Noise;
+uniform float rounding;
 
 #define FAR 30.0
 #define MAX_STEPS 128
@@ -252,6 +253,10 @@ float map(vec3 p) {
     }
 
     float turnFx = max(turnIntensity - 0.2, 0.0);
+
+    // Subtract rounding to inflate geometry and round all edges
+    d -= rounding;
+
     return d + noise(p * 2.0) * (turnFx) * 0.0 * turnVisualEnabled;
 }
 

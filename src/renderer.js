@@ -125,6 +125,7 @@ export class Renderer {
             layer4Noise: gl.getUniformLocation(this.program, 'layer4Noise'),
             layer5Noise: gl.getUniformLocation(this.program, 'layer5Noise'),
             layer6Noise: gl.getUniformLocation(this.program, 'layer6Noise'),
+            rounding: gl.getUniformLocation(this.program, 'rounding'),
         };
 
         // Default debug values
@@ -147,6 +148,7 @@ export class Renderer {
             turnVisualEnabled: 1.0,
             layer2Noise: 0.0,
             layer3Noise: 0.0,
+            rounding: 0.0,
         };
     }
 
@@ -202,6 +204,7 @@ export class Renderer {
         gl.uniform1f(this.uniforms.layer4Noise, d.layer4Noise);
         gl.uniform1f(this.uniforms.layer5Noise, d.layer5Noise);
         gl.uniform1f(this.uniforms.layer6Noise, d.layer6Noise);
+        gl.uniform1f(this.uniforms.rounding, d.rounding);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }

@@ -23,6 +23,8 @@ const DEFAULT_VALUES = {
     // Layer noise
     layer2Noise: 0.5,
     layer3Noise: 0.5,
+    // Geometry rounding
+    rounding: 0.0,
 };
 
 export class DebugUI {
@@ -149,6 +151,7 @@ export class DebugUI {
                 ${this.createSlider('iterations', 'Iterations', 1, 6, 1)}
                 ${this.createSlider('domainWarp', 'Domain Warp', 0, 1, 0.05)}
                 ${this.createSlider('twistAmount', 'Twist', 0, 0.2, 0.01)}
+                ${this.createSlider('rounding', 'Rounding', 0, 0.3, 0.01)}
             </div>
 
             <div class="section">
