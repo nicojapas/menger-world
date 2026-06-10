@@ -7,6 +7,8 @@
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
+![Menger World Demo](menger-hal-demo.gif)
+
 An immersive WebGL fractal corridor controlled by a HAL 9000-inspired AI agent. Navigate through an infinite raymarched Menger sponge while an AI adjusts the visuals in real-time based on voice interaction.
 
 ## Features
