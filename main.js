@@ -1,12 +1,22 @@
 /**
  * Main orchestrator - minimal entry point that ties together all modules
+ * Supports two backends: LangGraph (custom agent) or ElevenLabs (native voice AI)
+ * Uses BYOK (Bring Your Own Key) - users provide their own API keys
  */
 
 import { Renderer, loadShader } from './src/renderer.js';
 import { SyncState } from './src/sync.js';
 import audioSystem from './src/audio.js';
 import { AgentClient, createAgentUI } from './src/agent-client.js';
-import { AGENT_WS_URL } from './config.js';
+import { ElevenLabsClient, createElevenLabsUI } from './src/elevenlabs-client.js';
+import { AGENT_WS_URL, SERVER_URL } from './config.js';
+
+// LocalStorage keys (only non-sensitive data)
+const STORAGE_KEYS = {
+    BACKEND: 'menger-world-backend',
+    AGENT_ID: 'menger-world-agent-id',
+    SERVER_URL: 'menger-world-server-url'
+};
 
 // Initialize renderer
 const canvas = document.getElementById('canvas');
@@ -69,7 +79,7 @@ startOverlay?.addEventListener('click', async () => {
     // Connect to agent server now (after user interaction, so audio can play)
     if (agentClient) {
         agentClient.connect().catch((err) => {
-            console.log('Agent server not available:', err.message);
+            console.log('Agent connection failed:', err.message);
         });
     }
 
@@ -80,6 +90,109 @@ startOverlay?.addEventListener('click', async () => {
     });
 });
 
+/**
+ * Show setup screen and wait for user configuration
+ * Returns: { backend: 'elevenlabs'|'langgraph', agentId?, groqApiKey?, serverUrl? }
+ */
+function showSetupScreen() {
+    return new Promise((resolve) => {
+        const setupOverlay = document.getElementById('setup-overlay');
+        const startBtn = document.getElementById('setup-start-btn');
+        const errorDiv = document.getElementById('setup-error');
+
+        // Backend buttons
+        const elevenLabsBtn = document.getElementById('backend-elevenlabs');
+        const langGraphBtn = document.getElementById('backend-langgraph');
+
+        // Config sections
+        const elevenLabsConfig = document.getElementById('elevenlabs-config');
+        const langGraphConfig = document.getElementById('langgraph-config');
+
+        // Input fields
+        const agentIdInput = document.getElementById('elevenlabs-agent-id');
+        const apiKeyInput = document.getElementById('langgraph-api-key');
+        const serverUrlInput = document.getElementById('langgraph-server-url');
+
+        // Current selection
+        let selectedBackend = localStorage.getItem(STORAGE_KEYS.BACKEND) || 'elevenlabs';
+
+        // Pre-fill from localStorage (non-sensitive only)
+        agentIdInput.value = localStorage.getItem(STORAGE_KEYS.AGENT_ID) || '';
+        serverUrlInput.value = localStorage.getItem(STORAGE_KEYS.SERVER_URL) || 'http://localhost:8765';
+
+        // Update UI based on selection
+        function updateSelection(backend) {
+            selectedBackend = backend;
+
+            // Update button styles
+            elevenLabsBtn.style.borderColor = backend === 'elevenlabs' ? '#0f0' : '#333';
+            elevenLabsBtn.style.color = backend === 'elevenlabs' ? '#fff' : '#888';
+            langGraphBtn.style.borderColor = backend === 'langgraph' ? '#0f0' : '#333';
+            langGraphBtn.style.color = backend === 'langgraph' ? '#fff' : '#888';
+
+            // Show/hide config sections
+            elevenLabsConfig.style.display = backend === 'elevenlabs' ? 'block' : 'none';
+            langGraphConfig.style.display = backend === 'langgraph' ? 'block' : 'none';
+
+            // Clear error
+            errorDiv.style.display = 'none';
+        }
+
+        // Initialize UI
+        updateSelection(selectedBackend);
+
+        // Backend selection handlers
+        elevenLabsBtn.addEventListener('click', () => updateSelection('elevenlabs'));
+        langGraphBtn.addEventListener('click', () => updateSelection('langgraph'));
+
+        // Start button handler
+        startBtn.addEventListener('click', () => {
+            let config = { backend: selectedBackend };
+
+            if (selectedBackend === 'elevenlabs') {
+                const agentId = agentIdInput.value.trim();
+                if (!agentId) {
+                    errorDiv.textContent = 'Please enter your ElevenLabs Agent ID';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+                config.agentId = agentId;
+                localStorage.setItem(STORAGE_KEYS.AGENT_ID, agentId);
+            } else {
+                const apiKey = apiKeyInput.value.trim();
+                const serverUrl = serverUrlInput.value.trim() || 'http://localhost:8765';
+                if (!apiKey) {
+                    errorDiv.textContent = 'Please enter your Groq API Key';
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+                config.groqApiKey = apiKey;
+                config.serverUrl = serverUrl;
+                localStorage.setItem(STORAGE_KEYS.SERVER_URL, serverUrl);
+                // Note: API key is NOT stored in localStorage for security
+            }
+
+            // Save backend choice
+            localStorage.setItem(STORAGE_KEYS.BACKEND, selectedBackend);
+
+            // Hide setup, show start overlay
+            setupOverlay.style.display = 'none';
+            document.getElementById('start-overlay').style.display = 'flex';
+
+            resolve(config);
+        });
+
+        // Handle Enter key in inputs
+        [agentIdInput, apiKeyInput, serverUrlInput].forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    startBtn.click();
+                }
+            });
+        });
+    });
+}
+
 // Initialize
 async function init() {
     // Load fragment shader (vertex shader is inlined in renderer)
@@ -89,39 +202,63 @@ async function init() {
     renderer.init(fragmentSource);
     renderer.resize();
 
-    // Initialize agent client (connects after user clicks to start)
-    agentUI = createAgentUI();
-    agentClient = new AgentClient({
-        wsUrl: AGENT_WS_URL,
-        onParamsChange: (params) => {
-            renderer.setVisualParams(params);
-        },
-        onStatusChange: (status) => {
-            agentUI.updateStatus(status);
-        },
-        onTranscript: (entry) => {
-            agentUI.addTranscript(entry);
-        }
-    });
+    // Show static frame while setup screen is visible
+    renderer.renderStatic();
 
-    // Keyboard shortcut for microphone
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'm' || e.key === 'M') {
+    // Wait for user to configure via setup screen
+    const config = await showSetupScreen();
+
+    console.log(`Using ${config.backend} backend`);
+
+    // Initialize appropriate agent client based on backend
+    if (config.backend === 'elevenlabs') {
+        agentUI = createElevenLabsUI();
+        agentClient = new ElevenLabsClient({
+            agentId: config.agentId,
+            onParamsChange: (params) => {
+                renderer.setVisualParams(params);
+            },
+            onStatusChange: (status) => {
+                agentUI.updateStatus(status);
+            },
+            onTranscript: (entry) => {
+                agentUI.addTranscript(entry);
+            }
+        });
+    } else {
+        // LangGraph backend
+        const wsUrl = config.serverUrl.replace(/^http/, 'ws') + '/ws';
+        agentUI = createAgentUI();
+        agentClient = new AgentClient({
+            wsUrl: wsUrl,
+            groqApiKey: config.groqApiKey,
+            onParamsChange: (params) => {
+                renderer.setVisualParams(params);
+            },
+            onStatusChange: (status) => {
+                agentUI.updateStatus(status);
+            },
+            onTranscript: (entry) => {
+                agentUI.addTranscript(entry);
+            }
+        });
+
+        // Keyboard shortcut for microphone (LangGraph only)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'm' || e.key === 'M') {
+                if (agentClient.isConnected) {
+                    agentClient.toggleListening();
+                }
+            }
+        });
+
+        // Button click handler
+        document.getElementById('agent-listen-btn')?.addEventListener('click', () => {
             if (agentClient.isConnected) {
                 agentClient.toggleListening();
             }
-        }
-    });
-
-    // Button click handler
-    document.getElementById('agent-listen-btn')?.addEventListener('click', () => {
-        if (agentClient.isConnected) {
-            agentClient.toggleListening();
-        }
-    });
-
-    // Show static frame behind overlay
-    renderer.renderStatic();
+        });
+    }
 }
 
 init().catch(console.error);

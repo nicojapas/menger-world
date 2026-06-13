@@ -9,14 +9,152 @@
         body { overflow: hidden; background: #000; }
         canvas { display: block; width: 100vw; height: 100vh; }
     </style>
+    <!-- ElevenLabs Conversational AI SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@elevenlabs/client@latest/dist/lib.iife.js"></script>
 </head>
 <body>
     <canvas id="canvas"></canvas>
+
+    <!-- Setup Screen - BYOK configuration -->
+    <div id="setup-overlay" style="
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+    ">
+        <div style="
+            color: white;
+            font-family: monospace;
+            text-align: center;
+            max-width: 500px;
+            padding: 30px;
+        ">
+            <h1 style="font-size: 20px; margin-bottom: 24px; font-weight: normal; letter-spacing: 2px;">
+                MENGER WORLD
+            </h1>
+
+            <!-- Backend Selector -->
+            <div style="font-size: 11px; color: #666; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">
+                Select Backend
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 24px;">
+                <button id="backend-elevenlabs" class="backend-btn selected" style="
+                    background: #111;
+                    border: 2px solid #0f0;
+                    color: #fff;
+                    padding: 14px 24px;
+                    font-family: monospace;
+                    font-size: 13px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                ">ElevenLabs</button>
+                <button id="backend-langgraph" class="backend-btn" style="
+                    background: #111;
+                    border: 2px solid #333;
+                    color: #888;
+                    padding: 14px 24px;
+                    font-family: monospace;
+                    font-size: 13px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                ">LangGraph</button>
+            </div>
+
+            <!-- ElevenLabs Config -->
+            <div id="elevenlabs-config" style="margin-bottom: 24px;">
+                <label style="display: block; font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">
+                    Agent ID
+                </label>
+                <input id="elevenlabs-agent-id" type="text" placeholder="agent_xxxxxxxxxxxxx" style="
+                    width: 100%;
+                    padding: 12px;
+                    background: #0a0a0a;
+                    border: 1px solid #333;
+                    color: #fff;
+                    font-family: monospace;
+                    font-size: 14px;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                ">
+                <a href="https://elevenlabs.io/app/conversational-ai" target="_blank" style="
+                    display: inline-block;
+                    color: #666;
+                    font-size: 11px;
+                    margin-top: 8px;
+                    text-decoration: none;
+                ">Create an agent at elevenlabs.io →</a>
+            </div>
+
+            <!-- LangGraph Config (hidden by default) -->
+            <div id="langgraph-config" style="margin-bottom: 24px; display: none;">
+                <label style="display: block; font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">
+                    Groq API Key
+                </label>
+                <input id="langgraph-api-key" type="password" placeholder="gsk_xxxxxxxxxxxxx" style="
+                    width: 100%;
+                    padding: 12px;
+                    background: #0a0a0a;
+                    border: 1px solid #333;
+                    color: #fff;
+                    font-family: monospace;
+                    font-size: 14px;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                    margin-bottom: 12px;
+                ">
+                <label style="display: block; font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">
+                    Server URL
+                </label>
+                <input id="langgraph-server-url" type="text" placeholder="http://localhost:8765" style="
+                    width: 100%;
+                    padding: 12px;
+                    background: #0a0a0a;
+                    border: 1px solid #333;
+                    color: #fff;
+                    font-family: monospace;
+                    font-size: 14px;
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                ">
+                <div style="color: #666; font-size: 11px; margin-top: 8px;">
+                    Run <code style="background: #222; padding: 2px 6px; border-radius: 3px;">python agent/server.py</code> locally
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="setup-error" style="
+                color: #f66;
+                font-size: 12px;
+                margin-bottom: 16px;
+                display: none;
+            "></div>
+
+            <!-- Start Button -->
+            <button id="setup-start-btn" style="
+                background: #0f0;
+                border: none;
+                color: #000;
+                padding: 14px 48px;
+                font-family: monospace;
+                font-size: 14px;
+                font-weight: bold;
+                cursor: pointer;
+                border-radius: 4px;
+                letter-spacing: 1px;
+            ">START</button>
+        </div>
+    </div>
+
     <div id="start-overlay" style="
         position: fixed;
         inset: 0;
         background: rgba(0,0,0,0.5);
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
         cursor: pointer;
@@ -24,11 +162,11 @@
     ">
         <div style="
             color: white;
-            font-family: system-ui, sans-serif;
+            font-family: monospace;
             text-align: center;
         ">
-            <div style="font-size: 24px; margin-bottom: 8px;">Click to Enter</div>
-            <div style="font-size: 14px; opacity: 0.6;">Audio powered by ElevenLabs</div>
+            <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px;">CLICK TO ENTER</div>
+            <div style="font-size: 12px; opacity: 0.5;">Audio will start</div>
         </div>
     </div>
     <script type="module" src="main.js"></script>
