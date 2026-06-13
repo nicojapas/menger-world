@@ -30,19 +30,6 @@ export const TURN_PAN = {
     7: 0,     // → +Z (coming from down)
 };
 
-// Camera waypoints - positions in the Menger sponge corridor
-// Each waypoint is [x, y, z] - the camera smoothly interpolates between them
-export const WAYPOINTS = [
-    [0, 0, 0],   // Start
-    [0, 0, 16],  // Forward
-    [4, 0, 16],  // Turn right
-    [4, 0, 32],  // Forward
-    [4, 4, 32],  // Turn up
-    [4, 4, 48],  // Forward
-    [0, 4, 48],  // Turn left
-    [0, 4, 64],  // Forward (loop)
-];
-
 // Z positions for each segment (used for camZ calculation in audio sync)
 export const SEGMENT_Z_BASE = [0, 16, 16, 32, 32, 48, 48, 64];
 export const SEGMENT_Z_NEXT = [16, 16, 32, 32, 48, 48, 64, 64];
