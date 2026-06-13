@@ -13,6 +13,7 @@ export class ElevenLabsClient {
 
         this.conversation = null;
         this.isConnected = false;
+        this.isConnecting = false;
 
         // Interpolation state for smooth parameter transitions
         this.currentParams = {};
@@ -24,16 +25,25 @@ export class ElevenLabsClient {
      * Initialize and connect to ElevenLabs
      */
     async connect() {
+        // Prevent multiple simultaneous connection attempts
+        if (this.isConnecting || this.isConnected) {
+            console.log('Already connecting or connected, skipping');
+            return;
+        }
+        this.isConnecting = true;
+
         // Check if ElevenLabs SDK is loaded (IIFE bundle exposes window.ElevenLabsClient)
         const ElevenLabs = window.ElevenLabsClient || window.ElevenLabs || window.elevenlabs;
         const Conversation = ElevenLabs?.Conversation || window.Conversation;
 
         if (!Conversation) {
+            this.isConnecting = false;
             console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('eleven') || k === 'Conversation'));
             throw new Error('ElevenLabs SDK not loaded. Include @elevenlabs/client script.');
         }
 
         if (!this.agentId) {
+            this.isConnecting = false;
             throw new Error('No agent ID provided');
         }
 
@@ -52,12 +62,14 @@ export class ElevenLabsClient {
 
             onConnect: () => {
                 console.log('Connected to ElevenLabs');
+                this.isConnecting = false;
                 this.isConnected = true;
                 this.onStatusChange({ connected: true });
             },
 
             onDisconnect: () => {
                 console.log('Disconnected from ElevenLabs');
+                this.isConnecting = false;
                 this.isConnected = false;
                 this.onStatusChange({ connected: false });
             },
