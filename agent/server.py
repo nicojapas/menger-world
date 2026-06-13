@@ -51,14 +51,21 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
         self.agents: dict[WebSocket, VisualAgent] = {}
+        self.api_keys: dict[WebSocket, str] = {}  # Per-session API keys (BYOK)
         self.voice: Optional[VoiceSynthesizer] = None
 
     async def connect(self, websocket: WebSocket):
+        """Accept WebSocket connection. Agent is initialized after receiving API key."""
         await websocket.accept()
         self.active_connections.append(websocket)
 
-        # Create a new agent for this connection
-        agent = VisualAgent()
+    async def initialize_agent(self, websocket: WebSocket, groq_api_key: str):
+        """Initialize agent with per-session API key (BYOK)."""
+        # Store API key for this session (never logged or persisted)
+        self.api_keys[websocket] = groq_api_key
+
+        # Create a new agent for this connection with the provided API key
+        agent = VisualAgent(groq_api_key=groq_api_key)
         self.agents[websocket] = agent
 
         # Send initial greeting
@@ -94,6 +101,8 @@ class ConnectionManager:
         self.active_connections.remove(websocket)
         if websocket in self.agents:
             del self.agents[websocket]
+        if websocket in self.api_keys:
+            del self.api_keys[websocket]  # Clear API key on disconnect
 
     async def send_message(self, websocket: WebSocket, message: dict):
         await websocket.send_json(message)
@@ -228,7 +237,13 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_json()
 
-            if data.get("type") == "user_input":
+            if data.get("type") == "init":
+                # BYOK: Initialize agent with per-session API key
+                groq_api_key = data.get("groqApiKey", "")
+                if groq_api_key:
+                    await manager.initialize_agent(websocket, groq_api_key)
+
+            elif data.get("type") == "user_input":
                 text = data.get("text", "")
                 if text:
                     # Input validation

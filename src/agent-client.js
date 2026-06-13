@@ -6,6 +6,7 @@
 export class AgentClient {
     constructor(options = {}) {
         this.wsUrl = options.wsUrl || 'ws://localhost:8765/ws';
+        this.groqApiKey = options.groqApiKey;
         this.onParamsChange = options.onParamsChange || (() => {});
         this.onStatusChange = options.onStatusChange || (() => {});
         this.onTranscript = options.onTranscript || (() => {});
@@ -32,6 +33,15 @@ export class AgentClient {
 
             this.ws.onopen = () => {
                 console.log('Connected to agent server');
+
+                // Send init message with API key (BYOK)
+                if (this.groqApiKey) {
+                    this.ws.send(JSON.stringify({
+                        type: 'init',
+                        groqApiKey: this.groqApiKey
+                    }));
+                }
+
                 this.isConnected = true;
                 this.onStatusChange({ connected: true });
                 resolve();

@@ -21,14 +21,22 @@ class AgentState(TypedDict):
     pending_speech: Optional[str]
 
 
-def create_agent():
-    """Create the LangGraph agent."""
+def create_agent(groq_api_key: str = None):
+    """Create the LangGraph agent.
+
+    Args:
+        groq_api_key: Groq API key (BYOK). Falls back to env var if not provided.
+    """
+    # Use provided key or fall back to environment variable
+    api_key = groq_api_key or os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("Groq API key required. Provide via BYOK or GROQ_API_KEY env var.")
 
     # Initialize the LLM (Groq - free tier with fast inference)
     # Using 8B model: cheaper, faster, and more obedient to persona instructions
     llm = ChatGroq(
         model="llama-3.1-8b-instant",
-        api_key=os.getenv("GROQ_API_KEY"),
+        api_key=api_key,
         temperature=0.7
     )
 
@@ -91,8 +99,14 @@ def create_agent():
 class VisualAgent:
     """High-level interface to the visual control agent."""
 
-    def __init__(self):
-        self.graph = create_agent()
+    def __init__(self, groq_api_key: str = None):
+        """
+        Initialize the visual agent.
+
+        Args:
+            groq_api_key: Groq API key (BYOK). Falls back to env var if not provided.
+        """
+        self.graph = create_agent(groq_api_key=groq_api_key)
         self.state: AgentState = {
             "messages": [],
             "current_params": {},

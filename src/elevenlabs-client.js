@@ -6,7 +6,7 @@
 
 export class ElevenLabsClient {
     constructor(options = {}) {
-        this.serverUrl = options.serverUrl || window.location.origin;
+        this.agentId = options.agentId;
         this.onParamsChange = options.onParamsChange || (() => {});
         this.onStatusChange = options.onStatusChange || (() => {});
         this.onTranscript = options.onTranscript || (() => {});
@@ -33,26 +33,13 @@ export class ElevenLabsClient {
             throw new Error('ElevenLabs SDK not loaded. Include @elevenlabs/client script.');
         }
 
-        // Get config (agent ID and initial params) from our server
-        const configResponse = await fetch(`${this.serverUrl}/config`);
-        if (!configResponse.ok) {
-            throw new Error(`Failed to get config: ${configResponse.statusText}`);
-        }
-        const config = await configResponse.json();
-
-        if (!config.agentId) {
-            throw new Error('No agent ID in config. Set ELEVENLABS_AGENT_ID in .env');
+        if (!this.agentId) {
+            throw new Error('No agent ID provided');
         }
 
-        if (config.initialParams) {
-            this.targetParams = { ...config.initialParams };
-            this.currentParams = { ...config.initialParams };
-            this.onParamsChange(this.currentParams);
-        }
-
-        // Connect directly with agent ID (public agent, no signed URL needed)
+        // Connect directly with agent ID (BYOK - user provides their own agent ID)
         this.conversation = await Conversation.startSession({
-            agentId: config.agentId,
+            agentId: this.agentId,
 
             // Handle visual parameter updates via client tool
             clientTools: {
