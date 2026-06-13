@@ -1,0 +1,267 @@
+/* Reset and base */
+* { margin: 0; padding: 0; }
+body { overflow: hidden; background: #000; }
+canvas { display: block; width: 100vw; height: 100vh; }
+
+/* Shared styles */
+.overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.overlay-content {
+    color: white;
+    font-family: monospace;
+    text-align: center;
+}
+
+.section-label {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Setup overlay */
+#setup-overlay {
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+}
+
+#setup-overlay .overlay-content {
+    max-width: 500px;
+    padding: 30px;
+}
+
+.setup-title {
+    font-size: 20px;
+    margin-bottom: 24px;
+    font-weight: normal;
+    letter-spacing: 2px;
+}
+
+/* Backend selector */
+.backend-selector {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.backend-btn {
+    background: #111;
+    border: 2px solid #333;
+    color: #888;
+    padding: 14px 24px;
+    font-family: monospace;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.backend-btn.selected {
+    border-color: #0f0;
+    color: #fff;
+}
+
+/* Config sections */
+.config-section {
+    margin-bottom: 24px;
+}
+
+.config-input {
+    width: 100%;
+    padding: 12px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    color: #fff;
+    font-family: monospace;
+    font-size: 14px;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.config-input + .section-label {
+    margin-top: 12px;
+    display: block;
+}
+
+.config-link {
+    display: inline-block;
+    color: #666;
+    font-size: 11px;
+    margin-top: 8px;
+    text-decoration: none;
+}
+
+.config-hint {
+    color: #666;
+    font-size: 11px;
+    margin-top: 8px;
+}
+
+.config-hint code {
+    background: #222;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Error message */
+#setup-error {
+    color: #f66;
+    font-size: 12px;
+    margin-bottom: 16px;
+    display: none;
+}
+
+/* Start button */
+.start-btn {
+    background: #0f0;
+    border: none;
+    color: #000;
+    padding: 14px 48px;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 4px;
+    letter-spacing: 1px;
+}
+
+/* Start/connecting overlay */
+#start-overlay {
+    background: rgba(0,0,0,0.5);
+    display: none;
+    z-index: 100;
+}
+
+.state-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+}
+
+.state-subtitle {
+    font-size: 12px;
+    opacity: 0.5;
+}
+
+#connecting-state .state-title {
+    opacity: 0.7;
+}
+
+#error-state .state-title {
+    color: #f66;
+}
+
+#error-message {
+    font-size: 12px;
+    opacity: 0.7;
+    color: #f99;
+}
+
+#error-state .state-subtitle {
+    margin-top: 12px;
+}
+
+/* Hidden state utility */
+.hidden {
+    display: none;
+}
+
+/* Agent UI panel */
+#agent-ui {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 15px;
+    border-radius: 8px;
+    z-index: 1000;
+    width: 300px;
+    display: none;
+}
+
+#agent-ui.visible {
+    display: block;
+}
+
+#agent-ui .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+#agent-ui .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #666;
+}
+
+#agent-ui .status-dot.connected {
+    background: #0f0;
+}
+
+#agent-ui .status-dot.listening {
+    background: #f00;
+    animation: pulse 1s infinite;
+}
+
+#agent-ui .status-dot.speaking {
+    background: #00f;
+    animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+#agent-ui .transcript {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+#agent-ui .transcript-entry {
+    margin-bottom: 8px;
+}
+
+#agent-ui .transcript-entry.user {
+    color: #8cf;
+}
+
+#agent-ui .transcript-entry.agent {
+    color: #8f8;
+}
+
+#agent-ui .badge {
+    background: #333;
+    border: 1px solid #555;
+    color: #888;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    text-align: center;
+}
+
+#agent-ui .hint {
+    color: #666;
+    font-size: 10px;
+    margin-top: 8px;
+    text-align: center;
+}

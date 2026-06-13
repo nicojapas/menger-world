@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Fractal corridor visualization with ElevenLabs audio",
   "scripts": {
-    "generate-audio": "node generate-loops.js",
+    "generate-audio": "node scripts/generate-loops.js",
     "serve": "npx serve ."
   },
   "keywords": ["webgl", "shader", "elevenlabs", "generative", "audio"],

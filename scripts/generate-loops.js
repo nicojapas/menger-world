@@ -17,7 +17,7 @@ import { config } from 'dotenv';
 config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOOPS_DIR = path.join(__dirname, 'loops');
+const LOOPS_DIR = path.join(__dirname, '..', 'loops');
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 const API_URL = 'https://api.elevenlabs.io/v1/sound-generation';

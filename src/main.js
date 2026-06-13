@@ -4,12 +4,12 @@
  * Uses BYOK (Bring Your Own Key) - users provide their own API keys
  */
 
-import { Renderer, loadShader } from './src/renderer.js';
-import { SyncState } from './src/sync.js';
-import audioSystem from './src/audio.js';
-import { AgentClient, createAgentUI } from './src/agent-client.js';
-import { ElevenLabsClient, createElevenLabsUI } from './src/elevenlabs-client.js';
-import { AGENT_WS_URL, SERVER_URL } from './config.js';
+import { Renderer, loadShader } from './renderer.js';
+import { SyncState } from './sync.js';
+import audioSystem from './audio.js';
+import { AgentClient } from './agent-client.js';
+import { ElevenLabsClient } from './elevenlabs-client.js';
+import { createAgentUI } from './agent-ui.js';
 
 // LocalStorage keys (only non-sensitive data)
 const STORAGE_KEYS = {
@@ -151,17 +151,14 @@ function showSetupScreen() {
         function updateSelection(backend) {
             selectedBackend = backend;
 
-            // Update button styles
-            justFlyBtn.style.borderColor = backend === 'justfly' ? '#0f0' : '#333';
-            justFlyBtn.style.color = backend === 'justfly' ? '#fff' : '#888';
-            elevenLabsBtn.style.borderColor = backend === 'elevenlabs' ? '#0f0' : '#333';
-            elevenLabsBtn.style.color = backend === 'elevenlabs' ? '#fff' : '#888';
-            langGraphBtn.style.borderColor = backend === 'langgraph' ? '#0f0' : '#333';
-            langGraphBtn.style.color = backend === 'langgraph' ? '#fff' : '#888';
+            // Update button styles via CSS class
+            [justFlyBtn, elevenLabsBtn, langGraphBtn].forEach(btn => btn.classList.remove('selected'));
+            const selectedBtn = { justfly: justFlyBtn, elevenlabs: elevenLabsBtn, langgraph: langGraphBtn }[backend];
+            selectedBtn.classList.add('selected');
 
             // Show/hide config sections
-            elevenLabsConfig.style.display = backend === 'elevenlabs' ? 'block' : 'none';
-            langGraphConfig.style.display = backend === 'langgraph' ? 'block' : 'none';
+            elevenLabsConfig.classList.toggle('hidden', backend !== 'elevenlabs');
+            langGraphConfig.classList.toggle('hidden', backend !== 'langgraph');
 
             // Clear error
             errorDiv.style.display = 'none';
@@ -228,6 +225,37 @@ function showSetupScreen() {
     });
 }
 
+/**
+ * Initialize an agent client with common callbacks
+ */
+async function initAgentClient(ClientClass, provider, clientOptions) {
+    agentUI = createAgentUI(provider);
+    agentClient = new ClientClass({
+        ...clientOptions,
+        onParamsChange: (params) => {
+            renderer.setVisualParams(params);
+        },
+        onStatusChange: (status) => {
+            agentUI.updateStatus(status);
+            if (status.connected) {
+                startExperience();
+            } else if (status.connected === false && !experienceStarted) {
+                setOverlayState('error', status.error || 'Disconnected');
+            }
+        },
+        onTranscript: (entry) => {
+            agentUI.addTranscript(entry);
+        }
+    });
+
+    try {
+        await agentClient.connect();
+    } catch (err) {
+        console.error('Agent connection failed:', err);
+        setOverlayState('error', err.message || 'Connection failed');
+    }
+}
+
 // Initialize
 async function init() {
     // Load fragment shader (vertex shader is inlined in renderer)
@@ -249,67 +277,18 @@ async function init() {
     // Initialize appropriate agent client based on backend
     if (config.backend === 'justfly') {
         // Just Fly mode - no agent, just visuals and sounds
-        // Start immediately (user already clicked START)
         await startExperience();
     } else if (config.backend === 'elevenlabs') {
-        agentUI = createElevenLabsUI();
-        agentClient = new ElevenLabsClient({
-            agentId: config.agentId,
-            onParamsChange: (params) => {
-                renderer.setVisualParams(params);
-            },
-            onStatusChange: (status) => {
-                agentUI.updateStatus(status);
-                // Start experience when connected, show error if disconnected before start
-                if (status.connected) {
-                    startExperience();
-                } else if (status.connected === false && !experienceStarted) {
-                    setOverlayState('error', status.error || 'Disconnected');
-                }
-            },
-            onTranscript: (entry) => {
-                agentUI.addTranscript(entry);
-            }
+        await initAgentClient(ElevenLabsClient, 'ElevenLabs', {
+            agentId: config.agentId
         });
-
-        // Connect to agent
-        try {
-            await agentClient.connect();
-        } catch (err) {
-            console.error('Agent connection failed:', err);
-            setOverlayState('error', err.message || 'Connection failed');
-        }
     } else {
         // LangGraph backend
         const wsUrl = config.serverUrl.replace(/^http/, 'ws') + '/ws';
-        agentUI = createAgentUI();
-        agentClient = new AgentClient({
+        await initAgentClient(AgentClient, 'LangGraph + Groq', {
             wsUrl: wsUrl,
-            groqApiKey: config.groqApiKey,
-            onParamsChange: (params) => {
-                renderer.setVisualParams(params);
-            },
-            onStatusChange: (status) => {
-                agentUI.updateStatus(status);
-                // Start experience when connected, show error if disconnected before start
-                if (status.connected) {
-                    startExperience();
-                } else if (status.connected === false && !experienceStarted) {
-                    setOverlayState('error', status.error || 'Disconnected');
-                }
-            },
-            onTranscript: (entry) => {
-                agentUI.addTranscript(entry);
-            }
+            groqApiKey: config.groqApiKey
         });
-
-        // Connect to agent
-        try {
-            await agentClient.connect();
-        } catch (err) {
-            console.error('Agent connection failed:', err);
-            setOverlayState('error', err.message || 'Connection failed');
-        }
     }
 }
 
