@@ -157,7 +157,6 @@
         display: none;
         align-items: center;
         justify-content: center;
-        cursor: pointer;
         z-index: 100;
     ">
         <div style="
@@ -165,8 +164,22 @@
             font-family: monospace;
             text-align: center;
         ">
-            <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px;">CLICK TO ENTER</div>
-            <div style="font-size: 12px; opacity: 0.5;">Audio will start</div>
+            <!-- Connecting state -->
+            <div id="connecting-state">
+                <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px; opacity: 0.7;">CONNECTING...</div>
+                <div style="font-size: 12px; opacity: 0.5;">Initializing agent</div>
+            </div>
+            <!-- Ready state (hidden initially) -->
+            <div id="ready-state" style="display: none; cursor: pointer;">
+                <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px;">CLICK TO ENTER</div>
+                <div style="font-size: 12px; opacity: 0.5;">Audio will start</div>
+            </div>
+            <!-- Error state (hidden initially) -->
+            <div id="error-state" style="display: none;">
+                <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px; color: #f66;">CONNECTION FAILED</div>
+                <div id="error-message" style="font-size: 12px; opacity: 0.7; color: #f99;"></div>
+                <div style="font-size: 12px; opacity: 0.5; margin-top: 12px;">Check console for details</div>
+            </div>
         </div>
     </div>
     <script type="module" src="main.js"></script>

@@ -76,6 +76,17 @@ export class AgentClient {
     }
 
     /**
+     * Start the experience (triggers greeting from server)
+     */
+    start() {
+        if (!this.isConnected || !this.ws) {
+            console.warn('Not connected to agent server');
+            return;
+        }
+        this.ws.send(JSON.stringify({ type: 'start' }));
+    }
+
+    /**
      * Handle incoming messages from the server
      */
     handleMessage(message) {
@@ -86,6 +97,11 @@ export class AgentClient {
 
             case 'speak':
                 this.handleSpeak(message);
+                break;
+
+            case 'error':
+                console.error('Server error:', message.message);
+                this.onStatusChange({ connected: false, error: message.message });
                 break;
 
             default:
@@ -151,6 +167,20 @@ export class AgentClient {
             utterance.voice = englishVoice;
         }
 
+        // Track speaking state to prevent echo
+        utterance.onstart = () => {
+            this.isPlaying = true;
+            this.onStatusChange({ speaking: true });
+        };
+        utterance.onend = () => {
+            this.isPlaying = false;
+            this.onStatusChange({ speaking: false });
+        };
+        utterance.onerror = () => {
+            this.isPlaying = false;
+            this.onStatusChange({ speaking: false });
+        };
+
         speechSynthesis.speak(utterance);
     }
 
@@ -171,6 +201,7 @@ export class AgentClient {
         }
 
         this.isPlaying = true;
+        this.onStatusChange({ speaking: true });
         const base64Audio = this.audioQueue.shift();
 
         try {
@@ -202,12 +233,14 @@ export class AgentClient {
                 console.log('Audio playback finished');
                 URL.revokeObjectURL(audioUrl);
                 this.isPlaying = false;
+                this.onStatusChange({ speaking: false });
                 this.playNextAudio();
             };
 
             audio.onerror = (e) => {
                 console.error('Audio playback error:', e, audio.error);
                 this.isPlaying = false;
+                this.onStatusChange({ speaking: false });
                 this.playNextAudio();
             };
 
@@ -217,6 +250,7 @@ export class AgentClient {
         } catch (error) {
             console.error('Error playing audio:', error);
             this.isPlaying = false;
+            this.onStatusChange({ speaking: false });
             this.playNextAudio();
         }
     }
@@ -270,6 +304,11 @@ export class AgentClient {
         };
 
         this.recognition.onresult = (event) => {
+            // Ignore input while AI is speaking (prevents echo)
+            if (this.isPlaying) {
+                return;
+            }
+
             const last = event.results.length - 1;
             const transcript = event.results[last][0].transcript;
             const isFinal = event.results[last].isFinal;
@@ -395,6 +434,10 @@ export function createAgentUI() {
                 background: #f00;
                 animation: pulse 1s infinite;
             }
+            #agent-ui .status-dot.speaking {
+                background: #00f;
+                animation: pulse 0.5s infinite;
+            }
             @keyframes pulse {
                 0%, 100% { opacity: 1; }
                 50% { opacity: 0.5; }
@@ -416,21 +459,14 @@ export function createAgentUI() {
             #agent-ui .transcript-entry.agent {
                 color: #8f8;
             }
-            #agent-ui button {
+            #agent-ui .badge {
                 background: #333;
                 border: 1px solid #555;
-                color: #fff;
-                padding: 8px 16px;
+                color: #888;
+                padding: 4px 8px;
                 border-radius: 4px;
-                cursor: pointer;
-                width: 100%;
-            }
-            #agent-ui button:hover {
-                background: #444;
-            }
-            #agent-ui button.listening {
-                background: #600;
-                border-color: #f00;
+                font-size: 10px;
+                text-align: center;
             }
             #agent-ui .hint {
                 color: #666;
@@ -444,8 +480,8 @@ export function createAgentUI() {
             <span id="agent-status-text">Disconnected</span>
         </div>
         <div class="transcript" id="agent-transcript"></div>
-        <button id="agent-listen-btn">Start Listening</button>
-        <div class="hint">Press M to toggle microphone</div>
+        <div class="badge">Powered by LangGraph + Groq</div>
+        <div class="hint">Voice is always active when connected</div>
     `;
 
     document.body.appendChild(ui);
@@ -469,9 +505,12 @@ export function createAgentUI() {
                 panel.classList.add('visible');
             }
 
-            dot.classList.remove('connected', 'listening');
+            dot.classList.remove('connected', 'listening', 'speaking');
 
-            if (status.listening) {
+            if (status.speaking) {
+                dot.classList.add('speaking');
+                text.textContent = 'Agent speaking...';
+            } else if (status.listening) {
                 dot.classList.add('listening');
                 text.textContent = 'Listening...';
             } else if (isConnected) {
@@ -480,10 +519,6 @@ export function createAgentUI() {
             } else {
                 text.textContent = 'Disconnected';
             }
-
-            const btn = document.getElementById('agent-listen-btn');
-            btn.classList.toggle('listening', status.listening);
-            btn.textContent = status.listening ? 'Stop Listening' : 'Start Listening';
         },
 
         addTranscript: (entry) => {

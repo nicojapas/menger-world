@@ -31,6 +31,8 @@ let agentUI = null;
 let experienceStarted = false;
 let audioStarted = false;
 let timeOffset = 0;
+let agentReady = false;
+let selectedBackend = null;
 
 // Handle window resize
 function onResize() {
@@ -66,29 +68,58 @@ function render(time) {
     requestAnimationFrame(render);
 }
 
-// Start experience on user interaction
+// Start experience on user interaction (only when agent is ready)
 const startOverlay = document.getElementById('start-overlay');
-startOverlay?.addEventListener('click', async () => {
-    if (experienceStarted) return;
+const readyState = document.getElementById('ready-state');
+
+readyState?.addEventListener('click', async () => {
+    if (experienceStarted || !agentReady) return;
 
     await audioSystem.start();
     audioStarted = true;
     experienceStarted = true;
     startOverlay.style.display = 'none';
 
-    // Connect to agent server now (after user interaction, so audio can play)
+    // Tell the agent to start (sends greeting)
     if (agentClient) {
-        agentClient.connect().catch((err) => {
-            console.log('Agent connection failed:', err.message);
-        });
+        agentClient.start();
     }
 
-    // Start animation from t=0
+    // For LangGraph, auto-start listening
+    if (selectedBackend === 'langgraph' && agentClient) {
+        agentClient.startListening();
+    }
+
+    // Start animation - render first frame at t=0 to avoid visual jump
     requestAnimationFrame((firstFrameTime) => {
         timeOffset = firstFrameTime;
+        // Render first frame immediately at t=0 (matches renderStatic)
+        const { turnIntensity, isAlternate } = syncState.update(0, () => {});
+        renderer.render(0, turnIntensity, isAlternate);
+        // Then continue with normal animation loop
         requestAnimationFrame(render);
     });
 });
+
+/**
+ * Update the start overlay state
+ */
+function setOverlayState(state, errorMessage = '') {
+    const connectingState = document.getElementById('connecting-state');
+    const readyStateEl = document.getElementById('ready-state');
+    const errorStateEl = document.getElementById('error-state');
+    const errorMessageEl = document.getElementById('error-message');
+
+    connectingState.style.display = state === 'connecting' ? 'block' : 'none';
+    readyStateEl.style.display = state === 'ready' ? 'block' : 'none';
+    errorStateEl.style.display = state === 'error' ? 'block' : 'none';
+
+    if (errorMessage) {
+        errorMessageEl.textContent = errorMessage;
+    }
+
+    agentReady = state === 'ready';
+}
 
 /**
  * Show setup screen and wait for user configuration
@@ -207,6 +238,7 @@ async function init() {
 
     // Wait for user to configure via setup screen
     const config = await showSetupScreen();
+    selectedBackend = config.backend;
 
     console.log(`Using ${config.backend} backend`);
 
@@ -220,6 +252,12 @@ async function init() {
             },
             onStatusChange: (status) => {
                 agentUI.updateStatus(status);
+                // Update overlay based on connection state
+                if (status.connected) {
+                    setOverlayState('ready');
+                } else if (status.connected === false && !experienceStarted) {
+                    setOverlayState('error', status.error || 'Disconnected');
+                }
             },
             onTranscript: (entry) => {
                 agentUI.addTranscript(entry);
@@ -237,27 +275,25 @@ async function init() {
             },
             onStatusChange: (status) => {
                 agentUI.updateStatus(status);
+                // Update overlay based on connection state
+                if (status.connected) {
+                    setOverlayState('ready');
+                } else if (status.connected === false && !experienceStarted) {
+                    setOverlayState('error', status.error || 'Disconnected');
+                }
             },
             onTranscript: (entry) => {
                 agentUI.addTranscript(entry);
             }
         });
+    }
 
-        // Keyboard shortcut for microphone (LangGraph only)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'm' || e.key === 'M') {
-                if (agentClient.isConnected) {
-                    agentClient.toggleListening();
-                }
-            }
-        });
-
-        // Button click handler
-        document.getElementById('agent-listen-btn')?.addEventListener('click', () => {
-            if (agentClient.isConnected) {
-                agentClient.toggleListening();
-            }
-        });
+    // Connect to agent immediately (before user clicks to enter)
+    try {
+        await agentClient.connect();
+    } catch (err) {
+        console.error('Agent connection failed:', err);
+        setOverlayState('error', err.message || 'Connection failed');
     }
 }
 

@@ -23,24 +23,37 @@ class LocalVoiceSynthesizer:
 
     def _load_model(self):
         """Download and load the Piper voice model."""
-        # Download model files from Hugging Face
         cache_dir = Path(__file__).parent / ".cache" / "piper"
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            # Download the ONNX model (hal.onnx from campwill/HAL-9000-Piper-TTS)
-            model_path = hf_hub_download(
-                repo_id=self.model_repo,
-                filename="hal.onnx",
-                cache_dir=cache_dir
-            )
+        # Local paths for cached model files
+        local_model = cache_dir / "hal.onnx"
+        local_config = cache_dir / "hal.onnx.json"
 
-            # Download the config JSON
-            config_path = hf_hub_download(
-                repo_id=self.model_repo,
-                filename="hal.onnx.json",
-                cache_dir=cache_dir
-            )
+        try:
+            # Use local files if they exist, otherwise download from HF Hub
+            if local_model.exists() and local_config.exists():
+                model_path = str(local_model)
+                config_path = str(local_config)
+            else:
+                print("Downloading HAL-9000 voice model from HuggingFace...")
+                # Download the ONNX model
+                model_path = hf_hub_download(
+                    repo_id=self.model_repo,
+                    filename="hal.onnx",
+                    cache_dir=cache_dir,
+                    local_dir=cache_dir,
+                    local_dir_use_symlinks=False
+                )
+
+                # Download the config JSON
+                config_path = hf_hub_download(
+                    repo_id=self.model_repo,
+                    filename="hal.onnx.json",
+                    cache_dir=cache_dir,
+                    local_dir=cache_dir,
+                    local_dir_use_symlinks=False
+                )
 
             # Load the voice
             self.voice = PiperVoice.load(model_path, config_path=config_path)

@@ -1,10 +1,7 @@
 """
-WebSocket server for the visual agent.
+WebSocket server for the LangGraph visual agent.
 Handles real-time communication between the browser and the agent.
-
-Supports two backends:
-- LangGraph (default): Custom agent with Groq LLM
-- ElevenLabs: Native Conversational AI (set AGENT_BACKEND=elevenlabs)
+Uses BYOK (Bring Your Own Key) - clients provide their own Groq API keys.
 """
 
 import os
@@ -12,23 +9,16 @@ from pathlib import Path
 from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 
 from graph import VisualAgent
 from voice import VoiceSynthesizer
 from voice_local import LocalVoiceSynthesizer
 from parameters import to_frontend_params, VisualParameters
-
-# ElevenLabs imports (optional)
-try:
-    from elevenlabs_config import get_agent_id, INITIAL_PARAMS
-    ELEVENLABS_AVAILABLE = True
-except ImportError:
-    ELEVENLABS_AVAILABLE = False
 
 # Load environment variables from project root
 ROOT_DIR = Path(__file__).parent.parent
@@ -37,12 +27,6 @@ load_dotenv(env_path)
 
 # Input validation
 MAX_INPUT_LENGTH = 500
-
-# Backend selection
-AGENT_BACKEND = os.getenv("AGENT_BACKEND", "langgraph")  # "langgraph" or "elevenlabs"
-
-# ElevenLabs agent ID (initialized in lifespan)
-elevenlabs_agent_id = None
 
 
 class ConnectionManager:
@@ -59,14 +43,36 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections.append(websocket)
 
-    async def initialize_agent(self, websocket: WebSocket, groq_api_key: str):
-        """Initialize agent with per-session API key (BYOK)."""
+    async def initialize_agent(self, websocket: WebSocket, groq_api_key: str) -> bool:
+        """Initialize agent with per-session API key (BYOK). Does not send greeting yet.
+
+        Returns True if successful, False if API key is invalid.
+        """
         # Store API key for this session (never logged or persisted)
         self.api_keys[websocket] = groq_api_key
 
         # Create a new agent for this connection with the provided API key
-        agent = VisualAgent(groq_api_key=groq_api_key)
-        self.agents[websocket] = agent
+        # This will validate the API key by creating the LLM client
+        try:
+            agent = VisualAgent(groq_api_key=groq_api_key)
+            # Test the API key with a simple call
+            agent.validate_api_key()
+            self.agents[websocket] = agent
+            print("Agent created and API key validated successfully")
+            return True
+        except Exception as e:
+            print(f"Failed to create agent: {e}")
+            # Clean up
+            if websocket in self.api_keys:
+                del self.api_keys[websocket]
+            return False
+
+    async def start_experience(self, websocket: WebSocket):
+        """Start the experience - send greeting and initial params."""
+        agent = self.agents.get(websocket)
+        if not agent:
+            print("Warning: No agent found for start_experience")
+            return
 
         # Send initial greeting
         greeting, params = agent.get_initial_greeting()
@@ -78,19 +84,23 @@ class ConnectionManager:
         # Synthesize and send greeting audio
         if self.voice:
             try:
+                print(f"Synthesizing greeting: {greeting[:50]}...")
                 audio_b64 = self.voice.synthesize_base64(greeting)
+                print(f"Audio synthesized, length: {len(audio_b64)}")
                 await self.send_message(websocket, {
                     "type": "speak",
                     "text": greeting,
                     "audio": audio_b64
                 })
-            except Exception:
+            except Exception as e:
+                print(f"Voice synthesis failed: {e}")
                 await self.send_message(websocket, {
                     "type": "speak",
                     "text": greeting,
                     "audio": None
                 })
         else:
+            print("No voice synthesizer available, using browser TTS")
             await self.send_message(websocket, {
                 "type": "speak",
                 "text": greeting,
@@ -111,13 +121,17 @@ class ConnectionManager:
         """Process user speech input and respond."""
         agent = self.agents.get(websocket)
         if not agent:
+            print("Warning: No agent found for this websocket")
             return
 
         # Get agent response
+        print(f"Processing user input: {text[:100]}...")
         response_text, params = agent.process_user_input(text)
+        print(f"Agent response: {response_text[:100] if response_text else 'None'}...")
 
         # Send parameter updates if any
         if params:
+            print(f"Sending params: {params}")
             await self.send_message(websocket, {
                 "type": "params",
                 "data": to_frontend_params(VisualParameters(**params))
@@ -132,7 +146,8 @@ class ConnectionManager:
                     "text": response_text,
                     "audio": audio_b64
                 })
-            except Exception:
+            except Exception as e:
+                print(f"Voice synthesis failed: {e}")
                 await self.send_message(websocket, {
                     "type": "speak",
                     "text": response_text,
@@ -152,33 +167,28 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize services on startup."""
-    global elevenlabs_agent_id
+    # This server is only used for LangGraph backend
+    # ElevenLabs connects directly from browser (BYOK)
 
-    # Initialize ElevenLabs if using that backend
-    if AGENT_BACKEND == "elevenlabs" and ELEVENLABS_AVAILABLE:
+    # Initialize voice synthesizer for TTS
+    # Priority: 1. Local Piper TTS (HAL-9000), 2. ElevenLabs TTS (if configured)
+    use_elevenlabs_tts = os.getenv("USE_ELEVENLABS", "false").lower() == "true"
+
+    if use_elevenlabs_tts and os.getenv("ELEVENLABS_API_KEY"):
         try:
-            elevenlabs_agent_id = get_agent_id()
-            print(f"ElevenLabs backend initialized with agent: {elevenlabs_agent_id}")
+            manager.voice = VoiceSynthesizer()
+            print("Voice: Using ElevenLabs TTS")
         except Exception as e:
-            print(f"Failed to initialize ElevenLabs: {e}")
-            elevenlabs_agent_id = None
+            print(f"ElevenLabs TTS failed: {e}")
+            manager.voice = None
 
-    # For LangGraph backend, initialize voice synthesizer
-    if AGENT_BACKEND == "langgraph":
-        # Priority: 1. Local Piper TTS (HAL-9000), 2. ElevenLabs TTS (if configured)
-        use_elevenlabs = os.getenv("USE_ELEVENLABS", "false").lower() == "true"
-
-        if use_elevenlabs and os.getenv("ELEVENLABS_API_KEY"):
-            try:
-                manager.voice = VoiceSynthesizer()
-            except Exception:
-                manager.voice = None
-
-        if not manager.voice:
-            try:
-                manager.voice = LocalVoiceSynthesizer()
-            except Exception:
-                pass  # Will use browser TTS fallback
+    if not manager.voice:
+        try:
+            manager.voice = LocalVoiceSynthesizer()
+            print("Voice: Using local Piper TTS (HAL-9000)")
+        except Exception as e:
+            print(f"Local Piper TTS failed: {e}")
+            print("Voice: Falling back to browser TTS")
 
     yield
 
@@ -212,19 +222,7 @@ async def root():
 async def health():
     return {
         "status": "ok",
-        "backend": AGENT_BACKEND,
-        "voice_enabled": manager.voice is not None,
-        "elevenlabs_ready": elevenlabs_agent_id is not None
-    }
-
-
-@app.get("/config")
-async def get_config():
-    """Get client configuration including backend type."""
-    return {
-        "backend": AGENT_BACKEND,
-        "agentId": elevenlabs_agent_id if AGENT_BACKEND == "elevenlabs" else None,
-        "initialParams": INITIAL_PARAMS if AGENT_BACKEND == "elevenlabs" else None
+        "voice_enabled": manager.voice is not None
     }
 
 
@@ -241,7 +239,19 @@ async def websocket_endpoint(websocket: WebSocket):
                 # BYOK: Initialize agent with per-session API key
                 groq_api_key = data.get("groqApiKey", "")
                 if groq_api_key:
-                    await manager.initialize_agent(websocket, groq_api_key)
+                    print(f"Initializing agent with BYOK key (length: {len(groq_api_key)})")
+                    success = await manager.initialize_agent(websocket, groq_api_key)
+                    if not success:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "Invalid API key or connection failed"
+                        })
+                else:
+                    print("Warning: init received without API key")
+
+            elif data.get("type") == "start":
+                # User clicked to enter - send greeting
+                await manager.start_experience(websocket)
 
             elif data.get("type") == "user_input":
                 text = data.get("text", "")

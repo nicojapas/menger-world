@@ -47,57 +47,83 @@ export class ElevenLabsClient {
             throw new Error('No agent ID provided');
         }
 
+        // Request microphone permission before connecting
+        try {
+            console.log('Requesting microphone permission...');
+            await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('Microphone permission granted');
+        } catch (micError) {
+            this.isConnecting = false;
+            console.error('Microphone permission denied:', micError);
+            this.onStatusChange({ error: 'Microphone permission required' });
+            throw new Error('Microphone permission denied');
+        }
+
         // Connect directly with agent ID (BYOK - user provides their own agent ID)
-        this.conversation = await Conversation.startSession({
-            agentId: this.agentId,
+        try {
+            console.log('Starting ElevenLabs session with agent:', this.agentId);
+            this.conversation = await Conversation.startSession({
+                agentId: this.agentId,
 
-            // Handle visual parameter updates via client tool
-            clientTools: {
-                updateVisuals: async (parameters) => {
-                    console.log('updateVisuals called:', parameters);
-                    this.handleParamsUpdate(parameters);
-                    return "Visual parameters updated";
+                // Handle visual parameter updates via client tool
+                clientTools: {
+                    updateVisuals: async (parameters) => {
+                        console.log('updateVisuals called:', parameters);
+                        this.handleParamsUpdate(parameters);
+                        return "Visual parameters updated";
+                    }
+                },
+
+                onConnect: () => {
+                    console.log('Connected to ElevenLabs');
+                    this.isConnecting = false;
+                    this.isConnected = true;
+                    this.onStatusChange({ connected: true });
+                },
+
+                onDisconnect: (details) => {
+                    console.log('Disconnected from ElevenLabs');
+                    if (details) {
+                        console.log('Disconnect details:', JSON.stringify(details, null, 2));
+                    }
+                    this.isConnecting = false;
+                    this.isConnected = false;
+                    this.onStatusChange({ connected: false });
+                },
+
+                onError: (error) => {
+                    console.error('ElevenLabs error:', error);
+                    if (error.code) console.error('Error code:', error.code);
+                    if (error.reason) console.error('Error reason:', error.reason);
+                    this.onStatusChange({ error: error.message || String(error) });
+                },
+
+                onMessage: (message) => {
+                    // Handle transcription messages
+                    if (message.source === 'user') {
+                        this.onTranscript({ speaker: 'user', text: message.message });
+                    } else if (message.source === 'ai') {
+                        this.onTranscript({ speaker: 'agent', text: message.message });
+                    }
+                },
+
+                onStatusChange: (status) => {
+                    console.log('ElevenLabs status:', status);
+                    this.onStatusChange({
+                        listening: status.mode === 'listening',
+                        speaking: status.mode === 'speaking'
+                    });
                 }
-            },
+            });
 
-            onConnect: () => {
-                console.log('Connected to ElevenLabs');
-                this.isConnecting = false;
-                this.isConnected = true;
-                this.onStatusChange({ connected: true });
-            },
-
-            onDisconnect: () => {
-                console.log('Disconnected from ElevenLabs');
-                this.isConnecting = false;
-                this.isConnected = false;
-                this.onStatusChange({ connected: false });
-            },
-
-            onError: (error) => {
-                console.error('ElevenLabs error:', error);
-                this.onStatusChange({ error: error.message });
-            },
-
-            onMessage: (message) => {
-                // Handle transcription messages
-                if (message.source === 'user') {
-                    this.onTranscript({ speaker: 'user', text: message.message });
-                } else if (message.source === 'ai') {
-                    this.onTranscript({ speaker: 'agent', text: message.message });
-                }
-            },
-
-            onStatusChange: (status) => {
-                console.log('ElevenLabs status:', status);
-                this.onStatusChange({
-                    listening: status.mode === 'listening',
-                    speaking: status.mode === 'speaking'
-                });
-            }
-        });
-
-        return this.conversation;
+            console.log('ElevenLabs session started successfully');
+            return this.conversation;
+        } catch (sessionError) {
+            this.isConnecting = false;
+            console.error('Failed to start ElevenLabs session:', sessionError);
+            this.onStatusChange({ error: sessionError.message || 'Connection failed' });
+            throw sessionError;
+        }
     }
 
     /**
@@ -110,6 +136,14 @@ export class ElevenLabsClient {
         }
         this.isConnected = false;
         this.onStatusChange({ connected: false });
+    }
+
+    /**
+     * Start the experience - ElevenLabs auto-starts on connect, so this is a no-op
+     */
+    start() {
+        // ElevenLabs automatically starts the conversation when connected
+        // The agent will speak its greeting when ready
     }
 
     /**

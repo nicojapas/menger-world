@@ -53,7 +53,9 @@ def create_agent(groq_api_key: str = None):
         # Get structured LLM response with error handling
         try:
             response: AgentResponse = structured_llm.invoke(messages)
-        except Exception:
+        except Exception as e:
+            # Log the actual error for debugging
+            print(f"LLM error: {type(e).__name__}: {e}")
             # Fallback response on LLM failure
             return {
                 "messages": list(state["messages"]) + [AIMessage(content="I'm having trouble processing that.")],
@@ -106,6 +108,7 @@ class VisualAgent:
         Args:
             groq_api_key: Groq API key (BYOK). Falls back to env var if not provided.
         """
+        self.groq_api_key = groq_api_key
         self.graph = create_agent(groq_api_key=groq_api_key)
         self.state: AgentState = {
             "messages": [],
@@ -113,6 +116,14 @@ class VisualAgent:
             "pending_params": None,
             "pending_speech": None
         }
+
+    def validate_api_key(self):
+        """Validate the API key by making a simple test call to Groq."""
+        from langchain_groq import ChatGroq
+        api_key = self.groq_api_key or os.getenv("GROQ_API_KEY")
+        llm = ChatGroq(model="llama-3.1-8b-instant", api_key=api_key)
+        # Make a minimal call to validate the key
+        llm.invoke("Hi")
 
     def process_user_input(self, user_text: str) -> tuple[str, Optional[dict]]:
         """
