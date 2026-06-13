@@ -14,7 +14,6 @@ export class ElevenLabsClient {
         this.conversation = null;
         this.isConnected = false;
         this.isConnecting = false;
-        this.isReady = false; // Ready to start (validated but not connected)
         this.Conversation = null; // Store SDK reference
 
         // Interpolation state for smooth parameter transitions
@@ -24,13 +23,13 @@ export class ElevenLabsClient {
     }
 
     /**
-     * Validate and prepare for connection (don't actually connect yet)
-     * This gets mic permission and validates SDK is loaded
+     * Connect to ElevenLabs and start the session
+     * Validates agent ID by actually connecting
      */
     async connect() {
         // Prevent multiple simultaneous attempts
-        if (this.isReady || this.isConnecting || this.isConnected) {
-            console.log('Already ready/connecting/connected, skipping');
+        if (this.isConnecting || this.isConnected) {
+            console.log('Already connecting/connected, skipping');
             return;
         }
         this.isConnecting = true;
@@ -62,27 +61,7 @@ export class ElevenLabsClient {
             throw new Error('Microphone permission denied');
         }
 
-        // Mark as ready - actual connection happens in start()
-        this.isConnecting = false;
-        this.isReady = true;
-        console.log('ElevenLabs client ready, waiting for start()');
-        this.onStatusChange({ connected: true }); // Signal ready to proceed
-    }
-
-    /**
-     * Actually start the ElevenLabs session (called when user clicks to enter)
-     */
-    async start() {
-        if (!this.isReady || !this.Conversation) {
-            console.warn('Not ready to start - call connect() first');
-            return;
-        }
-
-        if (this.isConnected) {
-            console.log('Already connected');
-            return;
-        }
-
+        // Actually start the session to validate the agent ID
         try {
             console.log('Starting ElevenLabs session with agent:', this.agentId);
             this.conversation = await this.Conversation.startSession({
@@ -100,6 +79,8 @@ export class ElevenLabsClient {
                 onConnect: () => {
                     console.log('Connected to ElevenLabs');
                     this.isConnected = true;
+                    this.isConnecting = false;
+                    this.onStatusChange({ connected: true });
                 },
 
                 onDisconnect: (details) => {
@@ -108,7 +89,6 @@ export class ElevenLabsClient {
                         console.log('Disconnect details:', JSON.stringify(details, null, 2));
                     }
                     this.isConnected = false;
-                    this.isReady = false;
                     this.onStatusChange({ connected: false });
                 },
 
@@ -116,6 +96,7 @@ export class ElevenLabsClient {
                     console.error('ElevenLabs error:', error);
                     if (error.code) console.error('Error code:', error.code);
                     if (error.reason) console.error('Error reason:', error.reason);
+                    this.isConnecting = false;
                     this.onStatusChange({ error: error.message || String(error) });
                 },
 
@@ -138,12 +119,20 @@ export class ElevenLabsClient {
             });
 
             console.log('ElevenLabs session started successfully');
-            return this.conversation;
         } catch (sessionError) {
+            this.isConnecting = false;
             console.error('Failed to start ElevenLabs session:', sessionError);
             this.onStatusChange({ error: sessionError.message || 'Connection failed' });
             throw sessionError;
         }
+    }
+
+    /**
+     * Start is now a no-op since connection happens in connect()
+     */
+    start() {
+        // Session already started in connect()
+        console.log('ElevenLabs session already active');
     }
 
     /**
@@ -155,7 +144,6 @@ export class ElevenLabsClient {
             this.conversation = null;
         }
         this.isConnected = false;
-        this.isReady = false;
         this.onStatusChange({ connected: false });
     }
 

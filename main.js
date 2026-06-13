@@ -31,7 +31,6 @@ let agentUI = null;
 let experienceStarted = false;
 let audioStarted = false;
 let timeOffset = 0;
-let agentReady = false;
 let selectedBackend = null;
 
 // Handle window resize
@@ -68,12 +67,11 @@ function render(time) {
     requestAnimationFrame(render);
 }
 
-// Start experience on user interaction (only when agent is ready)
+// Start experience
 const startOverlay = document.getElementById('start-overlay');
-const readyState = document.getElementById('ready-state');
 
-readyState?.addEventListener('click', async () => {
-    if (experienceStarted || !agentReady) return;
+async function startExperience() {
+    if (experienceStarted) return;
 
     await audioSystem.start();
     audioStarted = true;
@@ -99,26 +97,23 @@ readyState?.addEventListener('click', async () => {
         // Then continue with normal animation loop
         requestAnimationFrame(render);
     });
-});
+}
+
 
 /**
- * Update the start overlay state
+ * Update the start overlay state (connecting or error)
  */
 function setOverlayState(state, errorMessage = '') {
     const connectingState = document.getElementById('connecting-state');
-    const readyStateEl = document.getElementById('ready-state');
     const errorStateEl = document.getElementById('error-state');
     const errorMessageEl = document.getElementById('error-message');
 
     connectingState.style.display = state === 'connecting' ? 'block' : 'none';
-    readyStateEl.style.display = state === 'ready' ? 'block' : 'none';
     errorStateEl.style.display = state === 'error' ? 'block' : 'none';
 
     if (errorMessage) {
         errorMessageEl.textContent = errorMessage;
     }
-
-    agentReady = state === 'ready';
 }
 
 /**
@@ -132,6 +127,7 @@ function showSetupScreen() {
         const errorDiv = document.getElementById('setup-error');
 
         // Backend buttons
+        const justFlyBtn = document.getElementById('backend-justfly');
         const elevenLabsBtn = document.getElementById('backend-elevenlabs');
         const langGraphBtn = document.getElementById('backend-langgraph');
 
@@ -156,6 +152,8 @@ function showSetupScreen() {
             selectedBackend = backend;
 
             // Update button styles
+            justFlyBtn.style.borderColor = backend === 'justfly' ? '#0f0' : '#333';
+            justFlyBtn.style.color = backend === 'justfly' ? '#fff' : '#888';
             elevenLabsBtn.style.borderColor = backend === 'elevenlabs' ? '#0f0' : '#333';
             elevenLabsBtn.style.color = backend === 'elevenlabs' ? '#fff' : '#888';
             langGraphBtn.style.borderColor = backend === 'langgraph' ? '#0f0' : '#333';
@@ -173,6 +171,7 @@ function showSetupScreen() {
         updateSelection(selectedBackend);
 
         // Backend selection handlers
+        justFlyBtn.addEventListener('click', () => updateSelection('justfly'));
         elevenLabsBtn.addEventListener('click', () => updateSelection('elevenlabs'));
         langGraphBtn.addEventListener('click', () => updateSelection('langgraph'));
 
@@ -189,7 +188,7 @@ function showSetupScreen() {
                 }
                 config.agentId = agentId;
                 localStorage.setItem(STORAGE_KEYS.AGENT_ID, agentId);
-            } else {
+            } else if (selectedBackend === 'langgraph') {
                 const apiKey = apiKeyInput.value.trim();
                 const serverUrl = serverUrlInput.value.trim() || 'http://localhost:8765';
                 if (!apiKey) {
@@ -202,13 +201,18 @@ function showSetupScreen() {
                 localStorage.setItem(STORAGE_KEYS.SERVER_URL, serverUrl);
                 // Note: API key is NOT stored in localStorage for security
             }
+            // justfly mode requires no validation
 
             // Save backend choice
             localStorage.setItem(STORAGE_KEYS.BACKEND, selectedBackend);
 
-            // Hide setup, show start overlay
+            // Hide setup
             setupOverlay.style.display = 'none';
-            document.getElementById('start-overlay').style.display = 'flex';
+
+            // Show start overlay only for agent modes (need to wait for connection)
+            if (selectedBackend !== 'justfly') {
+                document.getElementById('start-overlay').style.display = 'flex';
+            }
 
             resolve(config);
         });
@@ -243,7 +247,11 @@ async function init() {
     console.log(`Using ${config.backend} backend`);
 
     // Initialize appropriate agent client based on backend
-    if (config.backend === 'elevenlabs') {
+    if (config.backend === 'justfly') {
+        // Just Fly mode - no agent, just visuals and sounds
+        // Start immediately (user already clicked START)
+        await startExperience();
+    } else if (config.backend === 'elevenlabs') {
         agentUI = createElevenLabsUI();
         agentClient = new ElevenLabsClient({
             agentId: config.agentId,
@@ -252,9 +260,9 @@ async function init() {
             },
             onStatusChange: (status) => {
                 agentUI.updateStatus(status);
-                // Update overlay based on connection state
+                // Start experience when connected, show error if disconnected before start
                 if (status.connected) {
-                    setOverlayState('ready');
+                    startExperience();
                 } else if (status.connected === false && !experienceStarted) {
                     setOverlayState('error', status.error || 'Disconnected');
                 }
@@ -263,6 +271,14 @@ async function init() {
                 agentUI.addTranscript(entry);
             }
         });
+
+        // Connect to agent
+        try {
+            await agentClient.connect();
+        } catch (err) {
+            console.error('Agent connection failed:', err);
+            setOverlayState('error', err.message || 'Connection failed');
+        }
     } else {
         // LangGraph backend
         const wsUrl = config.serverUrl.replace(/^http/, 'ws') + '/ws';
@@ -275,9 +291,9 @@ async function init() {
             },
             onStatusChange: (status) => {
                 agentUI.updateStatus(status);
-                // Update overlay based on connection state
+                // Start experience when connected, show error if disconnected before start
                 if (status.connected) {
-                    setOverlayState('ready');
+                    startExperience();
                 } else if (status.connected === false && !experienceStarted) {
                     setOverlayState('error', status.error || 'Disconnected');
                 }
@@ -286,14 +302,14 @@ async function init() {
                 agentUI.addTranscript(entry);
             }
         });
-    }
 
-    // Connect to agent immediately (before user clicks to enter)
-    try {
-        await agentClient.connect();
-    } catch (err) {
-        console.error('Agent connection failed:', err);
-        setOverlayState('error', err.message || 'Connection failed');
+        // Connect to agent
+        try {
+            await agentClient.connect();
+        } catch (err) {
+            console.error('Agent connection failed:', err);
+            setOverlayState('error', err.message || 'Connection failed');
+        }
     }
 }
 

@@ -26,13 +26,17 @@ export class AgentClient {
 
     /**
      * Connect to the agent server
+     * Waits for server to validate the API key before resolving
      */
     connect() {
         return new Promise((resolve, reject) => {
             this.ws = new WebSocket(this.wsUrl);
+            this._connectResolve = resolve;
+            this._connectReject = reject;
+            this._connectionValidated = false;
 
             this.ws.onopen = () => {
-                console.log('Connected to agent server');
+                console.log('WebSocket opened, sending init and start...');
 
                 // Send init message with API key (BYOK)
                 if (this.groqApiKey) {
@@ -42,25 +46,66 @@ export class AgentClient {
                     }));
                 }
 
-                this.isConnected = true;
-                this.onStatusChange({ connected: true });
-                resolve();
+                // Also send start to trigger server response for validation
+                this.ws.send(JSON.stringify({ type: 'start' }));
             };
 
             this.ws.onclose = () => {
                 console.log('Disconnected from agent server');
                 this.isConnected = false;
                 this.onStatusChange({ connected: false });
+
+                // Reject if connection not yet validated
+                if (!this._connectionValidated && this._connectReject) {
+                    this._connectReject(new Error('Connection closed before validation'));
+                    this._connectReject = null;
+                }
             };
 
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
-                reject(error);
+                if (this._connectReject) {
+                    this._connectReject(error);
+                    this._connectReject = null;
+                }
             };
 
             this.ws.onmessage = (event) => {
-                this.handleMessage(JSON.parse(event.data));
+                const message = JSON.parse(event.data);
+
+                // Check for validation - first successful message means API key is valid
+                if (!this._connectionValidated) {
+                    if (message.type === 'error') {
+                        // Server rejected (likely invalid API key)
+                        console.error('Server error during validation:', message.message);
+                        if (this._connectReject) {
+                            this._connectReject(new Error(message.message || 'Server rejected connection'));
+                            this._connectReject = null;
+                        }
+                        return;
+                    } else if (message.type === 'params' || message.type === 'speak' || message.type === 'ready') {
+                        // First successful response - connection is validated
+                        this._connectionValidated = true;
+                        this.isConnected = true;
+                        this.onStatusChange({ connected: true });
+                        if (this._connectResolve) {
+                            this._connectResolve();
+                            this._connectResolve = null;
+                        }
+                    }
+                }
+
+                this.handleMessage(message);
             };
+
+            // Timeout for validation
+            setTimeout(() => {
+                if (!this._connectionValidated && this._connectReject) {
+                    this._connectReject(new Error('Connection validation timeout'));
+                    this._connectReject = null;
+                    this.ws?.close();
+                }
+            }, 10000);
         });
     }
 
@@ -76,14 +121,11 @@ export class AgentClient {
     }
 
     /**
-     * Start the experience (triggers greeting from server)
+     * Start the experience - already triggered during connect()
      */
     start() {
-        if (!this.isConnected || !this.ws) {
-            console.warn('Not connected to agent server');
-            return;
-        }
-        this.ws.send(JSON.stringify({ type: 'start' }));
+        // Start message already sent during connect() for validation
+        console.log('LangGraph session already started during connect');
     }
 
     /**

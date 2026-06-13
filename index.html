@@ -41,7 +41,18 @@
             <div style="font-size: 11px; color: #666; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">
                 Select Backend
             </div>
-            <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 24px;">
+            <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap;">
+                <button id="backend-justfly" class="backend-btn" style="
+                    background: #111;
+                    border: 2px solid #333;
+                    color: #888;
+                    padding: 14px 24px;
+                    font-family: monospace;
+                    font-size: 13px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                ">Just Fly</button>
                 <button id="backend-elevenlabs" class="backend-btn selected" style="
                     background: #111;
                     border: 2px solid #0f0;
@@ -169,11 +180,6 @@
             <div id="connecting-state">
                 <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px; opacity: 0.7;">CONNECTING...</div>
                 <div style="font-size: 12px; opacity: 0.5;">Initializing agent</div>
-            </div>
-            <!-- Ready state (hidden initially) -->
-            <div id="ready-state" style="display: none; cursor: pointer;">
-                <div style="font-size: 20px; margin-bottom: 8px; letter-spacing: 2px;">CLICK TO ENTER</div>
-                <div style="font-size: 12px; opacity: 0.5;">Audio will start</div>
             </div>
             <!-- Error state (hidden initially) -->
             <div id="error-state" style="display: none;">
