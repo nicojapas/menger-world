@@ -23,12 +23,15 @@ class AudioSystem {
         this.lowpass = null;
         this.highpass = null;
         this.initialized = false;
+        this.initializing = false;
         this.started = false;
         this.turnSoundCooldown = 0;
     }
 
     async init() {
         if (this.initialized) return;
+        if (this.initializing) return; // Prevent concurrent init calls
+        this.initializing = true;
 
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -71,6 +74,7 @@ class AudioSystem {
         await this.loadLoops();
 
         this.initialized = true;
+        this.initializing = false;
     }
 
     createReverbImpulse(duration, decay, reverse) {
