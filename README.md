@@ -4,12 +4,22 @@
 [![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?style=for-the-badge&logo=elevenlabs&logoColor=white)](https://elevenlabs.io/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 ![Menger World Demo](menger-hal-demo.gif)
 
 An immersive WebGL fractal corridor controlled by a HAL 9000-inspired AI agent. Navigate through an infinite raymarched Menger sponge while an AI adjusts the visuals in real-time based on voice interaction.
+
+## Live Demo
+
+**[Try it live →](https://nicojapas.github.io/menger-world/)**
+
+The app supports two agent modes:
+
+| Mode | Requirements | Description |
+|------|--------------|-------------|
+| **ElevenLabs** | Agent ID only | Uses ElevenLabs Conversational AI directly from the browser — no server needed |
+| **LangGraph** | Local server + Groq API key | Custom agent with Groq LLM — requires running the backend locally |
 
 ## Features
 
@@ -19,20 +29,11 @@ An immersive WebGL fractal corridor controlled by a HAL 9000-inspired AI agent. 
 - **Voice Interaction** — Full voice-to-voice conversation with the AI
 - **Zero Dependencies Frontend** — Pure WebGL/GLSL, no frameworks
 
-## Two Backends
-
-This project supports two agent backends:
-
-| Backend | Description | Branch |
-|---------|-------------|--------|
-| **ElevenLabs** | Native Conversational AI with real-time voice-to-voice | `elevenlabs-native` |
-| **LangGraph** | Custom agent with Groq LLM + separate TTS | `main` |
-
 ---
 
-## ElevenLabs Backend (Recommended)
+## ElevenLabs Mode
 
-Uses [ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai) for end-to-end voice conversation with ultra-low latency.
+Uses [ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai) for end-to-end voice conversation with ultra-low latency. No local server required — connects directly from the browser.
 
 ### Setup
 
@@ -41,31 +42,16 @@ Uses [ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai) for
    - Add a **Client Tool** named `updateVisuals` with parameters: `rounding`, `domainWarp`, `breathingSpeed`, `layer2Density`, `layer3Density`, `baseColorR`, `baseColorG`, `baseColorB`
    - Configure your system prompt and voice
 
-2. **Configure environment**
-   ```bash
-   cd agent && pip install -r requirements.txt
-   cp .env.example .env
-   ```
-
-   Add to `.env`:
-   ```
-   AGENT_BACKEND=elevenlabs
-   ELEVENLABS_AGENT_ID=agent_xxxxxxxxxxxxx
-   ```
-
-3. **Run**
-   ```bash
-   python server.py
-   ```
+2. **Enter your Agent ID** in the app when prompted
 
 ### Architecture (ElevenLabs)
 
 ```
-┌─────────────────┐                      ┌──────────────────┐
-│                 │   Config/AgentID     │                  │
-│  WebGL Client   │◄────────────────────►│  FastAPI Server  │
-│  (Browser)      │                      │                  │
-│                 │                      └──────────────────┘
+┌─────────────────┐
+│                 │
+│  WebGL Client   │
+│  (Browser)      │
+│                 │
 │  @elevenlabs/   │   Direct WebSocket
 │  client SDK     │◄────────────────────►  ElevenLabs Cloud
 │                 │   (Voice + AI + TTS)
@@ -74,28 +60,18 @@ Uses [ElevenLabs Conversational AI](https://elevenlabs.io/conversational-ai) for
 
 ---
 
-## LangGraph Backend
+## LangGraph Mode
 
-Custom agent using LangGraph for orchestration, Groq for LLM inference, and Piper TTS for voice synthesis. Gives you full control over the agent logic.
+Custom agent using LangGraph for orchestration, Groq for LLM inference, and Piper TTS for voice synthesis. Requires running the local backend server.
 
 ### Setup
 
 ```bash
 cd agent && pip install -r requirements.txt
-cp .env.example .env
-```
-
-Add to `.env`:
-```
-AGENT_BACKEND=langgraph
-GROQ_API_KEY=your_groq_api_key
-```
-
-### Run
-
-```bash
 python server.py
 ```
+
+Then open the app and select **LangGraph** mode. Enter your **Groq API key** when prompted.
 
 ### Architecture (LangGraph)
 
@@ -131,24 +107,16 @@ npx serve .
 | Agent (ElevenLabs) | ElevenLabs Conversational AI |
 | Agent (LangGraph) | LangGraph, Groq (Llama 3.1), Piper TTS |
 | Server | FastAPI, WebSockets, Uvicorn |
-| Deploy | Docker |
 
-## Environment Variables
+## Environment Variables (Server)
 
-| Variable | Backend | Required | Description |
-|----------|---------|----------|-------------|
-| `AGENT_BACKEND` | Both | No | `elevenlabs` or `langgraph` (default) |
-| `ELEVENLABS_AGENT_ID` | ElevenLabs | Yes | Agent ID from ElevenLabs dashboard |
-| `GROQ_API_KEY` | LangGraph | Yes | Groq API key for LLM inference |
-| `USE_ELEVENLABS` | LangGraph | No | Set to `true` for ElevenLabs TTS instead of Piper |
-| `ELEVENLABS_API_KEY` | LangGraph | No | Required if `USE_ELEVENLABS=true` |
+These are only needed when running the LangGraph backend server locally:
 
-## Docker
-
-```bash
-docker build -t menger-world .
-docker run -p 8765:8765 -e AGENT_BACKEND=elevenlabs -e ELEVENLABS_AGENT_ID=xxx menger-world
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GROQ_API_KEY` | No | Can also be provided via the app's BYOK flow |
+| `USE_ELEVENLABS` | No | Set to `true` for ElevenLabs TTS instead of Piper |
+| `ELEVENLABS_API_KEY` | No | Required if `USE_ELEVENLABS=true` |
 
 ## Audio Generation
 
